@@ -17,7 +17,8 @@ RPLidar lidar;
 
 #define RPLIDAR_MOTOR 3 // The PWM pin for control the speed of RPLIDAR's motor.
 
-int start = 1;
+int start = 0;
+long measurementStartTime = 0;
 String dataStr = "";
 char buffer[7];
 void setLED(uint8_t r,uint8_t g,uint8_t b) {
@@ -38,7 +39,7 @@ float lastRotationTime = millis();
 File file;
 void setup() {
   Serial.begin(921600);
-  while (!Serial) ;
+  // while (!Serial) ;
   Serial.println("setting up");
   pinMode(SD_ENABLE,OUTPUT);
   digitalWrite(SD_ENABLE,LOW);
@@ -88,14 +89,17 @@ void setup() {
   Serial.println("finished setting up");
   setLED(60,0,0);
   Serial.println("waiting for start signal...");
-  while (start==0) {
+  for (int i =0; i<3; i++) {
     setLED(60,0,0);
     delay(200);
     setLED(60,60,60);
     delay(200);
   };
   setLED(60,0,0);
-  while (start==0) ;
+  while (start==0) {
+    delay(0);
+  };
+  measurementStartTime = millis();
   setLED(0,0,60);
   Serial1.begin(115200,SERIAL_8N1, RX, TX);
   Serial.println("starting Lidar...");
@@ -110,54 +114,55 @@ void setup() {
     return;
   }
   while(start==1) {
-      analogWrite(RPLIDAR_MOTOR, analogRead(A0));
-      if (IS_OK(lidar.waitPoint())) {
-        dataStr = "";
-        //convert floats to string and assemble c-type char string for writing:
-        dataStr += String(millis()) + ", ";//add it onto the end
-        //perform data processing here...
-        float distance = lidar.getCurrentPoint().distance;
-        float angle = lidar.getCurrentPoint().angle;
-        dataStr += String(angle) + ", ";//add it onto the end
-        dataStr += String(distance) + ", ";//add it onto the end
-        dataStr += "\n";
-        if(!file.print(dataStr)){
-          Serial.println("Append failed");
-          file.close();
-          file = SD.open("/csv.txt", FILE_APPEND);
-          if(!file){
-            Serial.println("Failed to open file for appending");
-            return;
-          }
-        }
-        if(prevAngle>angle+10) {
-          file.close();
-          file = SD.open("/csv.txt", FILE_APPEND);
-          if(!file){
-            Serial.println("Failed to open file for appending");
-            return;
-          }
-        };
-        prevAngle = angle;
-      } else {
-        analogWrite(RPLIDAR_MOTOR, 0); //stop the rplidar motor
-
-        // try to detect RPLIDAR...
-        rplidar_response_device_info_t info;
-        if (IS_OK(lidar.getDeviceInfo(info, 100))) {
-          //detected...
-          lidar.startScan();
-          // analogWrite(RPLIDAR_MOTOR, 255);
-          analogWrite(RPLIDAR_MOTOR, analogRead(A0));
-          delay(1000);
+    analogWrite(RPLIDAR_MOTOR, analogRead(A0));
+    if (IS_OK(lidar.waitPoint())) {
+      dataStr = "";
+      //convert floats to string and assemble c-type char string for writing:
+      dataStr += String(millis()-measurementStartTime) + ", ";//add it onto the end
+      //perform data processing here...
+      float distance = lidar.getCurrentPoint().distance;
+      float angle = lidar.getCurrentPoint().angle;
+      dataStr += String(angle) + ", ";//add it onto the end
+      dataStr += String(distance) + ", ";//add it onto the end
+      dataStr += "\n";
+      if(!file.print(dataStr)){
+        Serial.println("Append failed");
+        file.close();
+        file = SD.open("/csv.txt", FILE_APPEND);
+        if(!file){
+          Serial.println("Failed to open file for appending");
+          return;
         }
       }
+      if(prevAngle>angle+10) {
+        file.close();
+        file = SD.open("/csv.txt", FILE_APPEND);
+        if(!file){
+          Serial.println("Failed to open file for appending");
+          return;
+        }
+      };
+      prevAngle = angle;
+    } else {
+      analogWrite(RPLIDAR_MOTOR, 0); //stop the rplidar motor
+
+      // try to detect RPLIDAR...
+      rplidar_response_device_info_t info;
+      if (IS_OK(lidar.getDeviceInfo(info, 100))) {
+        //detected...
+        lidar.startScan();
+        // analogWrite(RPLIDAR_MOTOR, 255);
+        analogWrite(RPLIDAR_MOTOR, analogRead(A0));
+        delay(1000);
+      }
+    }
   }
-  // TODO: only close if not open anymore
-  if(file.available()){
-    file.close();
-  }
+  setLED(60,0,0);
+
+  digitalWrite(RPLIDAR_MOTOR,LOW);
+  file.close();
+  setLED(0,60,0);
 }
 void loop() {
-  
+  delay(100000);
 }

@@ -40,7 +40,7 @@ void handle_cmd(uint8_t cmd);
 void display_commands_banner(void);
 
 long measurements = 0;         // Used to calculate actual output rate
-long measurementStartTime = 0; // Used to calculate actual output rate
+long measurementStartTime = 0;
 
 // Components.
 VL53L8CX sensor_vl53l8cx_top(&DEV_I2C, LPN_PIN, I2C_RST_PIN);
@@ -51,6 +51,13 @@ uint8_t res = VL53L8CX_RESOLUTION_4X4;
 char report[256];
 int start = 0;
 
+
+void receiveEvent(int bytes) {
+  Serial.print("received: ");
+  start = Wire.read();    // read one character from the I2C
+  Serial.println(start);
+}
+
 /* Setup ---------------------------------------------------------------------*/
 void setup()
 {
@@ -58,6 +65,7 @@ void setup()
   Serial.begin(9600);
   while(!Serial) ;
   pinMode(7, OUTPUT);
+  pinMode(8, OUTPUT);
   Serial.println("setup sd card");
   // setting up SD card
   SD.begin(28);
@@ -83,9 +91,29 @@ void setup()
   }
   file.close();
 
-  Serial.println("Initializing sensor...");
 
   uint8_t status;
+  
+  // Initialize I2C bus. DEV_I2C is just a different name for Wire
+  Wire.begin(9);
+  // Wire.setClock(1000000); //Sensor has max I2C freq of 1MHz
+  Wire.onReceive(receiveEvent);
+
+  Serial.println("waiting for start signal...");
+  for (int i =0; i<3; i++) {
+    digitalWrite(7,HIGH);
+    delay(200);
+    digitalWrite(7,LOW);
+    delay(200);
+  };
+  digitalWrite(7,HIGH);
+  while (start==0) {
+    delay(0);
+  };
+  measurementStartTime = millis();
+  digitalWrite(7,LOW);
+
+  Serial.println("Initializing sensor...");
 
   // Enable PWREN pin if present
   if (PWREN_PIN >= 0) {
@@ -94,11 +122,10 @@ void setup()
     delay(10);
   }
   
-  // Initialize I2C bus. DEV_I2C is just a different name for Wire
+  Serial.println("I2C Initialized");
+
   DEV_I2C.begin();
   DEV_I2C.setClock(1000000); //Sensor has max I2C freq of 1MHz
-  
-  Serial.println("I2C Initialized");
 
   // Configure VL53L8CX component.
   sensor_vl53l8cx_top.begin();
@@ -106,11 +133,11 @@ void setup()
   sensor_vl53l8cx_top.init_sensor();
   Serial.println("Sensor initialized");
 
-  // sensor_vl53l8cx_top.vl53l8cx_set_ranging_mode(VL53L8CX_RANGING_MODE_AUTONOMOUS);
-  // if (status) {
-  //   snprintf(report, sizeof(report), "vl53l5cx_set_ranging_mode failed, status %u\r\n", status);
-  //   SerialPort.print(report);
-  // }
+  sensor_vl53l8cx_top.vl53l8cx_set_ranging_mode(VL53L8CX_RANGING_MODE_AUTONOMOUS);
+  if (status) {
+    snprintf(report, sizeof(report), "vl53l5cx_set_ranging_mode failed, status %u\r\n", status);
+    SerialPort.print(report);
+  }
   sensor_vl53l8cx_top.vl53l8cx_set_ranging_frequency_hz(30);
   if (status) {
     snprintf(report, sizeof(report), "vl53l8cx_set_ranging_frequency_hz failed, status %u\r\n", status);
@@ -125,17 +152,8 @@ void setup()
   toggle_signal_and_ambient();
 
   Serial.println("Success");
-  Serial.println("waiting for start signal...");
-  for (int i =0; i<3; i++) {
-    digitalWrite(7,HIGH);
-    delay(200);
-    digitalWrite(7,Low);
-    delay(200);
-  };
-  digitalWrite(7,HIGH);
-  while (start==0) ;
-
-  measurementStartTime = millis();
+  
+  digitalWrite(8,HIGH);
 }
 
 void loop()
@@ -153,17 +171,24 @@ void loop()
     print_result(&Results);
 
     // Uncomment to display actual measurement rate
-    measurements++;
-    float measurementTime = (millis() - measurementStartTime) / 1000.0;
-    Serial.print("rate: ");
-    Serial.print(measurements/measurementTime, 3);
-    Serial.println("Hz");
+    // measurements++;
+    // float measurementTime = (millis() - measurementStartTime) / 1000.0;
+    // Serial.print("rate: ");
+    // Serial.print(measurements/measurementTime, 3);
+    // Serial.println("Hz");
   }
 
   // if (Serial.available()>0)
   // {
   //   handle_cmd(Serial.read());
   // }
+
+  // it cant be stopped because the I2C is busy with the sensor
+  if(start==2){
+    digitalWrite(7,HIGH);
+    delay(5000);
+    exit(0);
+  }
 }
 
 void print_result(VL53L8CX_ResultsData *Result)
@@ -175,7 +200,7 @@ void print_result(VL53L8CX_ResultsData *Result)
   zones_per_line = (number_of_zones == 16) ? 4 : 8;
   dataStr = "";
   //convert floats to string and assemble c-type char string for writing:
-  dataStr += String(millis()) + ":";//add it onto the end
+  dataStr += String(millis()-measurementStartTime) + ":";//add it onto the end
 
   for (j = 0; j < number_of_zones; j += zones_per_line)
   {
