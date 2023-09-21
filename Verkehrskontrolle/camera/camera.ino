@@ -49,6 +49,7 @@
 int pictureNumber = 0;
 int start = 0;
 int pictureSavedTime = 0;
+long measurementStartTime = 0;
 
 File debugFile;
 String debugFilePath = "/debug.txt";
@@ -60,15 +61,15 @@ void receiveEvent(int bytes) {
 }
 
 void setup() {
-  WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout detector
+  // WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout detector
  
   Serial.begin(115200);
-  while(!Serial) ;
+  // while(!Serial) ;
 
   pinMode(LED_Pin, OUTPUT);
 
   // Start the I2C Bus as Slave on address 9
-  Wire.begin(9,14,15,100000); 
+  Wire.begin(9,1,3,100000); 
   // Attach a function to trigger when something is received.
   Wire.onReceive(receiveEvent);
   
@@ -108,12 +109,38 @@ void setup() {
   esp_err_t err = esp_camera_init(&config);
   if (err != ESP_OK) {
     Serial.printf("Camera init failed with error 0x%x", err);
+    for (int i =0; i<1; i++) {
+      digitalWrite(LED_Pin, HIGH);
+      delay(100);
+      digitalWrite(LED_Pin, LOW);
+      delay(100);
+    };
     return;
   }
+
+  Serial.print("waiting for start signal...\n");
+  for (int i =0; i<3; i++) {
+    digitalWrite(LED_Pin, HIGH);
+    delay(500);
+    digitalWrite(LED_Pin, LOW);
+    delay(500);
+  };
+  while (start==0) {
+    delay(0);
+  };
+  measurementStartTime = millis();
+  delay(800);
+  digitalWrite(LED_Pin, HIGH);
   
-  //Serial.println("Starting SD Card");
+  Serial.println("Starting SD Card");
   if(!SD_MMC.begin()){
     Serial.println("SD Card Mount Failed");
+    for (int i =0; i<2; i++) {
+      digitalWrite(LED_Pin, HIGH);
+      delay(100);
+      digitalWrite(LED_Pin, LOW);
+      delay(100);
+    };
     return;
   }
   
@@ -132,6 +159,12 @@ void setup() {
   debugFile = fs.open(debugFilePath, FILE_WRITE);
   if(!debugFile){
     Serial.println("Failed to open file for writing");
+    for (int i =0; i<3; i++) {
+      digitalWrite(LED_Pin, HIGH);
+      delay(100);
+      digitalWrite(LED_Pin, LOW);
+      delay(100);
+    };
     return;
   }
   if(debugFile.print("SDcard setup was successful!\n")){
@@ -141,22 +174,9 @@ void setup() {
   }
     
   camera_fb_t * fb = NULL;
-  Serial.print("finished setting up\n");
-  Serial.print("waiting for start signal...\n");
-  debugFile.print("finished setting up\n");
-  debugFile.print("waiting for start signal...\n");
-  debugFile.close();
-  delay(500);
-  for (int i =0; i<3; i++) {
-    digitalWrite(LED_Pin, HIGH);
-    delay(500);
-    digitalWrite(LED_Pin, LOW);
-    delay(500);
-  };
-  digitalWrite(LED_Pin, HIGH);
-  while (start==0) ;
 
-  debugFile = fs.open(debugFilePath, FILE_APPEND);
+  Serial.print("finished setting up\n");
+  debugFile.print("finished setting up\n");
   Serial.print("starting!\n");
   debugFile.print("starting!\n");
   debugFile.close();
@@ -173,9 +193,9 @@ void setup() {
     pictureNumber = EEPROM.read(0) + 1;
 
     // Path where new picture will be saved in SD Card
-    String path = "/picture" + String(pictureNumber) +".jpg";
+    String path = "/" + String(millis()-measurementStartTime) +".jpg";
 
-    // Serial.printf("Picture file name: %s\n", path.c_str());
+    Serial.printf("Picture file name: %s\n", path.c_str());
     
     File file = fs.open(path.c_str(), FILE_WRITE);
     if(!file){
@@ -188,12 +208,13 @@ void setup() {
       EEPROM.commit();
     }
     file.close();
+    Serial.println("picture taken");
     esp_camera_fb_return(fb); 
     Serial.println(millis()-pictureSavedTime);
   }
   
   // Turns off the ESP32-CAM white on-board LED (flash) connected to GPIO 4
-  pinMode(4, OUTPUT);
+  
   digitalWrite(4, LOW);
   rtc_gpio_hold_en(GPIO_NUM_4);
   

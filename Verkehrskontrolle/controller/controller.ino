@@ -8,6 +8,8 @@ void setLED(uint8_t r,uint8_t g,uint8_t b) {
 }
 // Include the required Wire library for I2C<br>#include 
 void setup() {
+  pinMode(8, OUTPUT);
+  digitalWrite(8, LOW);
   Serial.begin(921600);
   led.begin();
   led.setBrightness(30);  
@@ -15,11 +17,16 @@ void setup() {
   // while (!Serial) ;
   // Start the I2C Bus as Master
   Wire.begin(39, 40, 100000);
+
+  pinMode(2, OUTPUT);
   for(int i = 3; i>0; i--) {
     Serial.println(i);
     delay(500);
   }
   Serial.println("sending 1");
+  digitalWrite(2, LOW);
+  delay(200);
+  digitalWrite(2, HIGH);
   Wire.beginTransmission(9); // transmit to device #9
   Wire.write(1);              // sends x 
   Wire.endTransmission();    // stop transmitting
@@ -32,6 +39,7 @@ void setup() {
     delay(1000);
   }
   Serial.println("sending 0");
+  digitalWrite(2, LOW);
   Wire.beginTransmission(9); // transmit to device #9
   Wire.write(2);              // sends x 
   Wire.endTransmission();    // stop transmitting
