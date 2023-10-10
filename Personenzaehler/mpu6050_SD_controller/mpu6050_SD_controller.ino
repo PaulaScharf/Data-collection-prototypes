@@ -44,6 +44,9 @@ MPU6050 mpu(Wire);
 #define LED_PIN 1
 Freenove_ESP32_WS2812 led = Freenove_ESP32_WS2812(1, LED_PIN, 0, TYPE_GRB);
 
+const char* ssid       = "GIATSCHOOL-NET";
+const char* password   = "werockschools";
+
 int start = 0;
 long measurementStartTime = 0;
 long timer = 0;
@@ -57,6 +60,22 @@ void setLED(uint8_t r,uint8_t g,uint8_t b) {
 String append;
 void setup() {
   Serial.begin(115200);
+
+  //connect to WiFi
+  Serial.printf("Connecting to %s ", ssid);
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+      delay(500);
+      Serial.print(".");
+  }
+  Serial.println(" CONNECTED");
+  
+  //init and get the time
+  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+
+  //disconnect WiFi as it's no longer needed
+  WiFi.disconnect(true);
+  WiFi.mode(WIFI_OFF);
 
   // Start the I2C Bus as Slave on address 9
   Wire.begin(39,40,100000); 
@@ -99,10 +118,6 @@ void setup() {
   Serial.printf("Total space: %lluMB\n", SD.totalBytes() / (1024 * 1024));
   Serial.printf("Used space: %lluMB\n", SD.usedBytes() / (1024 * 1024));
   
-  mpu.setAddress(0x68); // set I2C address
-  byte status = mpu.begin();
-  Serial.print(F("MPU6050 status: "));
-  Serial.println(status);
   Serial.println("finished setting up");
   Serial.println("waiting for start signal...");
   for (int i =0; i<3; i++) {
@@ -119,6 +134,10 @@ void setup() {
   
   // mpu6050 
   Wire.begin(I2C_PIN_SDA, I2C_PIN_SCL);
+  mpu.setAddress(0x68); // set I2C address
+  byte status = mpu.begin();
+  Serial.print(F("MPU6050 status: "));
+  Serial.println(status);
   
   Serial.println(F("Calculating offsets, do not move MPU6050"));
   delay(1000);
@@ -126,16 +145,20 @@ void setup() {
   Serial.println("Done!\n");
   setLED(0,60,0);
 
-  writeFile(SD, "/mpu6050.csv", "Timestamp;ACCELERO X;ACCELERO Y;ACCELERO Z;GYRO X;GYRO Y;GYRO Z;ACC ANGLE X;ACC ANGLE Y;ANGLE X;ANGLE Y; Angle Z;\n");
+  // writeFile(SD, "/mpu6050.csv", "Timestamp;ACCELERO X;ACCELERO Y;ACCELERO Z;GYRO X;GYRO Y;GYRO Z;ACC ANGLE X;ACC ANGLE Y;ANGLE X;ANGLE Y; Angle Z;\n");
   
   while (start=1) {
       timer = measurementStartTime-millis();
+      if(!getLocalTime(&timeinfo)){
+        Serial.println("Failed to obtain time");
+        return;
+      }
       mpu.update();
 
       append = ""; 
     //   Serial.print("Values: ");
 
-      append += String(timer, 6); 
+      append += String(timeinfo.tm_hour,DEC)+":"+String(timeinfo.tm_min,DEC)+":"+String(timeinfo.tm_sec,DEC)+":"+String(timeinfo.tm_,DEC)+"."+String(timer, 6); 
       append += ";";
       append += String(mpu.getAccX(), 6);
       append += ";";
