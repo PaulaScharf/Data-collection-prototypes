@@ -1,0 +1,3 @@
+SDcard setup was successful!
+finished setting up
+starting!
