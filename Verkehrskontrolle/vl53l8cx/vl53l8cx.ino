@@ -26,7 +26,7 @@
 
 #define LPN_PIN 4
 #define I2C_RST_PIN -1
-#define PWREN_PIN 1
+#define PWREN_PIN 2
 
 #include <SD.h>
 #include "SPI.h"
@@ -63,7 +63,8 @@ void setup()
 {
   // Initialize serial for output.
   Serial.begin(9600);
-  while(!Serial) ;
+  delay(2000);
+  // while(!Serial) ;
   pinMode(7, OUTPUT);
   pinMode(8, OUTPUT);
   Serial.println("setup sd card");
@@ -124,7 +125,7 @@ void setup()
   
   Serial.println("I2C Initialized");
 
-  DEV_I2C.begin();
+  DEV_I2C.begin(39,40);
   DEV_I2C.setClock(1000000); //Sensor has max I2C freq of 1MHz
 
   // Configure VL53L8CX component.

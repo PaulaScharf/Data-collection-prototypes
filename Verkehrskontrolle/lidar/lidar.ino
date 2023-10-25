@@ -40,12 +40,14 @@ File file;
 void setup() {
   Serial.begin(921600);
   // while (!Serial) ;
+  delay(2000);
   Serial.println("setting up");
   pinMode(SD_ENABLE,OUTPUT);
   digitalWrite(SD_ENABLE,LOW);
   delay(2000);
   led.begin();
-  led.setBrightness(30);  
+  led.setBrightness(30);
+  setLED(60,60,0);
   // Start the I2C Bus as Slave on address 9
   Wire.begin(9,39,40,100000); 
   // Attach a function to trigger when something is received.
@@ -87,7 +89,6 @@ void setup() {
   //write csv headers to file:
   writeFile(SD, "/csv.txt", "Time,Angle,Distance\n");
   Serial.println("finished setting up");
-  setLED(60,0,0);
   Serial.println("waiting for start signal...");
   for (int i =0; i<3; i++) {
     setLED(60,0,0);
@@ -113,6 +114,7 @@ void setup() {
     Serial.println("Failed to open file for appending");
     return;
   }
+  Serial.println("Opened file for appending");
   while(start==1) {
     analogWrite(RPLIDAR_MOTOR, analogRead(A0));
     if (IS_OK(lidar.waitPoint())) {
@@ -125,6 +127,7 @@ void setup() {
       dataStr += String(angle) + ", ";//add it onto the end
       dataStr += String(distance) + ", ";//add it onto the end
       dataStr += "\n";
+      // file.print(dataStr);
       if(!file.print(dataStr)){
         Serial.println("Append failed");
         file.close();
@@ -159,7 +162,7 @@ void setup() {
   }
   setLED(60,0,0);
 
-  digitalWrite(RPLIDAR_MOTOR,LOW);
+  digitalWrite(RPLIDAR_MOTOR,0);
   file.close();
   setLED(0,60,0);
 }

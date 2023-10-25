@@ -34,7 +34,7 @@ void setup() {
   Wire.write(1);              // sends x 
   Wire.endTransmission();    // stop transmitting
   setLED(0, 60, 0);
-  for(int i = 10; i>0; i--) {
+  for(int i = 20; i>0; i--) {
     Serial.println(i);
     delay(1000);
   }
