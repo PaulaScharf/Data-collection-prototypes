@@ -13,7 +13,7 @@
  * This script lets the host of the LoRa network transmit the IDs of the slaves in an
  * interval of 3 seconds. If a slave answers in the given time, the host will print its message.
  *******************************************************************************/
-#include <senseBoxIO.h>
+// #include <senseBoxIO.h>
 
 #include <lmic.h>
 #include <hal/hal.h>
@@ -45,12 +45,14 @@ Adafruit_NeoPixel led= Adafruit_NeoPixel(1, 6,NEO_GRB + NEO_KHZ800);
 // https://docs.google.com/spreadsheets/d/1voGAtQAjC1qBmaVuP1ApNKs1ekgUjavHuVQIXyYSvNc
 #define TX_INTERVAL 3000
 
+#define VCC_ENABLE 41
+
 // Pin mapping
 const lmic_pinmap lmic_pins = {
-  .nss = PIN_XB1_CS,
+  .nss = 34,
   .rxtx = LMIC_UNUSED_PIN,
   .rst = LMIC_UNUSED_PIN,
-  .dio = {PIN_XB1_INT, PIN_XB1_INT, LMIC_UNUSED_PIN},
+  .dio = {33, 33, LMIC_UNUSED_PIN},
 };
 
 
@@ -65,25 +67,14 @@ void os_getDevKey (u1_t* buf) { }
 void onEvent (ev_t ev) {
 }
 
-osjob_t txjob;
 osjob_t timeoutjob;
-static void tx_func (osjob_t* job);
+osjob_t rxjob;
+static void rx_func (osjob_t* job);
 
 void setLED(uint8_t r,uint8_t g,uint8_t b) {
   // led.setLedColorData(0, r, g, b);
   led.setPixelColor(0,led.Color(r, g, b));
   led.show();
-}
-
-// Transmit the given string and call the given function afterwards
-void tx(const char *str, osjobcb_t func) {
-  os_radio(RADIO_RST); // Stop RX first
-  delay(1); // Wait a bit, without this os_radio below asserts, apparently because the state hasn't changed yet
-  LMIC.dataLen = 0;
-  while (*str)
-    LMIC.frame[LMIC.dataLen++] = *str++;
-  LMIC.osjob.func = func;
-  os_radio(RADIO_TX);
 }
 
 // Enable rx mode and call func when a packet is received
@@ -110,52 +101,22 @@ static void rx_func (osjob_t* job) {
 
   // Reschedule TX so that it should not collide with the other side's
   // next TX
-  os_setTimedCallback(&txjob, os_getTime() + ms2osticks(TX_INTERVAL/2), tx_func);
+  // os_setTimedCallback(&rxjob, os_getTime() + ms2osticks(TX_INTERVAL/2), tx_func);
 
-  // Serial.print("Got ");
-  // Serial.print(LMIC.dataLen);
-  // Serial.println(" bytes");
-  if(strncmp(slave_names[current_slave], (char*) LMIC.frame, strlen(slave_names[current_slave])) == 0) {
-    processMessageAndPrint((char*) LMIC.frame);
-  }
+  Serial.print("trashcan ");
+  Serial.println((strncmp("1", (char*) LMIC.frame, strlen("1")) == 0) ? "full" : "empty");
 
   // Restart RX
   rx(rx_func);
-}
-
-static void txdone_func (osjob_t* job) {
-  rx(rx_func);
-}
-
-// log text to USART and toggle LED
-static void tx_func (osjob_t* job) {
-  // Blink once to confirm reception and then keep the led on
-  setLED(255,255,0); // blue
-  delay(200);
-  setLED(0,255,0); // green
-
-  if(current_slave >= slave_names_length - 1) {
-    current_slave = 0;
-  } else {
-    current_slave++;
-  }
-
-  Serial.print("***** ");
-  Serial.println(slave_names[current_slave]);
-  tx(slave_names[current_slave], txdone_func);
-
-  // reschedule job every TX_INTERVAL (plus a bit of random to prevent
-  // systematic collisions), unless packets are received, then rx_func
-  // will reschedule at half this time.
-  os_setTimedCallback(job, os_getTime() + ms2osticks(TX_INTERVAL + random(500)), tx_func);
 }
 
 // application entry point
 void setup() {
   Serial.begin(115200);
   Serial.println("Starting");
-
-  senseBoxIO.powerXB1(true);
+  // LMIC initialize runtime env
+  pinMode(VCC_ENABLE, OUTPUT);
+  digitalWrite(VCC_ENABLE, LOW);
 
   led.begin();
   led.setBrightness(30);  
@@ -208,7 +169,7 @@ void setup() {
   Serial.flush();
 
   // setup initial job
-  os_setCallback(&txjob, tx_func);
+  os_setCallback(&rxjob, rx_func);
 }
 
 void loop() {
