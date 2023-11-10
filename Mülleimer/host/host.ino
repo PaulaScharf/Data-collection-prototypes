@@ -99,12 +99,10 @@ static void rx_func (osjob_t* job) {
   // Timeout RX (i.e. update led status) after 3 periods without RX
   os_setTimedCallback(&timeoutjob, os_getTime() + ms2osticks(4*TX_INTERVAL), rxtimeout_func);
 
-  // Reschedule TX so that it should not collide with the other side's
-  // next TX
-  // os_setTimedCallback(&rxjob, os_getTime() + ms2osticks(TX_INTERVAL/2), tx_func);
 
   Serial.print("trashcan ");
-  Serial.println((strncmp("1", (char*) LMIC.frame, strlen("1")) == 0) ? "full" : "empty");
+  // Serial.println((strncmp("1", (char*) LMIC.frame, strlen("1")) == 0) ? "full" : "empty");
+  Serial.println((char*) LMIC.frame);
 
   // Restart RX
   rx(rx_func);
