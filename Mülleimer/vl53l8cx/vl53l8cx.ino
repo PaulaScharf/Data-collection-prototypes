@@ -120,13 +120,9 @@ void print_wakeup_reason(){
 
 void setup()
 {
-
-  gpio_wakeup_disable((gpio_num_t)(INT_PIN));
-  print_wakeup_reason();  
-
   // Initialize serial for output.
   SerialPort.begin(9600);
-  while(!SerialPort);
+  // while(!SerialPort);
   // delay(2000);
 
   // Enable PWREN pin if present
@@ -229,16 +225,8 @@ bool checkMajority(VL53L8CX_ResultsData *Result, bool checkEmpty) {
 
 void enterSleepMode(void)
 {
-  // if(!is_sleeping) {
-    // Serial.println("going to sleep");
-    // is_sleeping = true;
-    // esp_sleep_pd_config(ESP_PD_DOMAIN_VDDSDIO, ESP_PD_OPTION_ON);
-    esp_sleep_enable_ext0_wakeup((gpio_num_t)(INT_PIN),0);
-    esp_light_sleep_start();
-  // } else {
-  //   is_sleeping = false;
-  //   Serial.println("woke up");
-  // }
+  esp_sleep_enable_ext0_wakeup((gpio_num_t)(INT_PIN),1);
+  esp_light_sleep_start();
 }
 
 void measure_trashcan(long trashcan_dimensions[]) {

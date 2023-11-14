@@ -116,7 +116,7 @@ void setup()
 
   // Initialize serial for output.
   SerialPort.begin(9600);
-  while(!SerialPort) ;
+  // while(!SerialPort) ;
 
   // Enable PWREN pin if present
   if (PWREN_PIN >= 0) {
@@ -148,11 +148,26 @@ void setup()
   } else {
     preferences.getBytes("t_dim", trashcan_dimensions, res*sizeof(bool));
     Serial.println("initial dimensions recovered");
+    for (j = 0; j < number_of_zones; j += zones_per_line)
+    {  
+      for (l = 0; l < VL53L8CX_NB_TARGET_PER_ZONE; l++)
+      {
+        // Print distance and status.
+        for (k = (zones_per_line - 1); k >= 0; k--)
+        {
+          SerialPort.print(" ");
+          SerialPort.print(trashcan_dimensions[(VL53L8CX_NB_TARGET_PER_ZONE * (j+k)) + l]);
+          SerialPort.print(" ");
+        }
+      }
+      SerialPort.println("");
+    }
   }
 
   Serial.println("starting to measure");
   // Start Measurements.
   sensor_VL53L8CX_top.vl53l8cx_start_ranging(); 
+  attachInterrupt(digitalPinToInterrupt(0), clearPreferences, CHANGE);
 }
 
 void loop()
@@ -178,6 +193,11 @@ void loop()
     }
     enterSleepMode();
   }
+}
+
+void clearPreferences() {
+  Serial.println("clearing preferences...");
+  preferences.clear();
 }
 
 float positive;
@@ -253,7 +273,7 @@ void tx_callback(osjob_t* job) {
 }
 
 void notifyViaLora() {
-  tx((String(trashcan_full) + " " + String(total) + " " + String(positive)).c_str(), tx_callback); 
+  tx(String(trashcan_full).c_str(), tx_callback); 
 }
 
 void print_result(VL53L8CX_ResultsData *Result)

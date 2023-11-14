@@ -23,8 +23,9 @@ const int slave_names_length = 3;
 const char* slave_names[slave_names_length] = { "slv1", "slv2", "slv3" };
 int current_slave = 0;
 
-#include <Adafruit_NeoPixel.h>
-Adafruit_NeoPixel led= Adafruit_NeoPixel(1, 6,NEO_GRB + NEO_KHZ800);
+#include "Freenove_WS2812_Lib_for_ESP32.h"
+#define LED_PIN 1
+Freenove_ESP32_WS2812 led = Freenove_ESP32_WS2812(1, LED_PIN, 0, TYPE_GRB);
 
 // we formerly would check this configuration; but now there is a flag,
 // in the LMIC, LMIC.noRXIQinversion;
@@ -72,11 +73,9 @@ osjob_t rxjob;
 static void rx_func (osjob_t* job);
 
 void setLED(uint8_t r,uint8_t g,uint8_t b) {
-  // led.setLedColorData(0, r, g, b);
-  led.setPixelColor(0,led.Color(r, g, b));
+  led.setLedColorData(0, r, g, b);
   led.show();
 }
-
 // Enable rx mode and call func when a packet is received
 void rx(osjobcb_t func) {
   LMIC.osjob.func = func;
@@ -87,22 +86,26 @@ void rx(osjobcb_t func) {
 }
 
 static void rxtimeout_func(osjob_t *job) {
-  setLED(255,0,0); // red
+  // setLED(255,0,0); // red
 }
 
 static void rx_func (osjob_t* job) {
   // Blink once to confirm reception and then keep the led on
   setLED(0,0,255); // blue
   delay(200);
-  setLED(0,255,0); // green
 
   // Timeout RX (i.e. update led status) after 3 periods without RX
   os_setTimedCallback(&timeoutjob, os_getTime() + ms2osticks(4*TX_INTERVAL), rxtimeout_func);
 
 
   Serial.print("trashcan ");
-  // Serial.println((strncmp("1", (char*) LMIC.frame, strlen("1")) == 0) ? "full" : "empty");
-  Serial.println((char*) LMIC.frame);
+  Serial.println((strncmp("1", (char*) LMIC.frame, strlen("1")) == 0) ? "full" : "empty");
+  if(strncmp("1", (char*) LMIC.frame, strlen("1")) == 0) {
+    setLED(255,0,0); // red
+  } else {
+    setLED(0,255,0); // green
+  }
+  // Serial.println((char*) LMIC.frame);
 
   // Restart RX
   rx(rx_func);
@@ -117,7 +120,7 @@ void setup() {
   digitalWrite(VCC_ENABLE, LOW);
 
   led.begin();
-  led.setBrightness(30);  
+  led.setBrightness(15);  
   setLED(0,255,0); // green
   delay(200);
   setLED(255,255,255); // blue
