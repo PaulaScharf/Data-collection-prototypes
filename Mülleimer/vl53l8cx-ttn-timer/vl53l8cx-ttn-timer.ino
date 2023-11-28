@@ -100,6 +100,10 @@ void print_wakeup_reason(){
 
 void setup()
 {
+  pinMode(IO_ENABLE, OUTPUT);
+  digitalWrite(IO_ENABLE,LOW);
+  pinMode(DONE_PIN, OUTPUT);
+  digitalWrite(DONE_PIN, LOW); 
   // Initialize serial for output.
   Serial.begin(9600);
   // while(!Serial);
@@ -161,8 +165,6 @@ void clearPreferences() {
 
 void enterSleepMode(void)
 {
-  Serial.println("going to sleep");
-  delay(10);
   digitalWrite(DONE_PIN, LOW); 
   digitalWrite(DONE_PIN, HIGH); 
   delay(10);
