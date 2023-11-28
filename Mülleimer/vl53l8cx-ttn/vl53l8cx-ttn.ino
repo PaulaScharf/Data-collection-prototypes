@@ -61,6 +61,7 @@
 #include <lmic.h>
 #include <hal/hal.h>
 #include <SPI.h>
+#include "driver/rtc_io.h"
 
 #define DEV_I2C Wire
 #define SerialPort Serial
@@ -69,14 +70,11 @@
 #define I2C_RST_PIN -1
 #define PWREN_PIN 2
 #define INT_PIN 3
-#define DONE_PIN 6
-#define IO_ENABLE 8
 
 #define uS_TO_S_FACTOR 1000000  /* Conversion factor for micro seconds to seconds */
 #define TIME_TO_SLEEP  25        /* Time ESP32 will go to sleep (in seconds) */
 
-#include <Preferences.h>
-Preferences preferences;
+static osjob_t sendjob;
 
 void measure(void);
 void print_result(VL53L8CX_ResultsData *Result);
@@ -86,14 +84,15 @@ String dataStr = "";
 VL53L8CX sensor_VL53L8CX_top(&DEV_I2C, LPN_PIN, I2C_RST_PIN);
 VL53L8CX_DetectionThresholds thresholds[VL53L8CX_NB_THRESHOLDS];
 RTC_DATA_ATTR const int res = VL53L8CX_RESOLUTION_8X8;
-RTC_DATA_ATTR bool trashcan_dimensions[res];
+RTC_DATA_ATTR long trashcan_dimensions[res];
+long testi[res];
 
 bool EnableAmbient = false;
 bool EnableSignal = false;
 char report[256];
 volatile int interruptCount = 0;
 
-bool trashcan_full = false;
+RTC_DATA_ATTR bool trashcan_full = false;
 RTC_DATA_ATTR int trashcan_distance_floor = 500;
 RTC_DATA_ATTR bool is_sleeping = false;
 bool lora_in_progress = false;
@@ -105,23 +104,38 @@ int8_t i, j, k, l;
 uint8_t zones_per_line = (number_of_zones == 16) ? 4 : 8;
 
 /* Setup ---------------------------------------------------------------------*/
+
+void print_wakeup_reason(){
+  esp_sleep_wakeup_cause_t wakeup_reason;
+
+  wakeup_reason = esp_sleep_get_wakeup_cause();
+
+  switch(wakeup_reason)
+  {
+    case ESP_SLEEP_WAKEUP_EXT0 : Serial.println("Wakeup caused by external signal using RTC_IO"); break;
+    case ESP_SLEEP_WAKEUP_EXT1 : Serial.println("Wakeup caused by external signal using RTC_CNTL"); break;
+    case ESP_SLEEP_WAKEUP_TIMER : Serial.println("Wakeup caused by timer"); break;
+    case ESP_SLEEP_WAKEUP_TOUCHPAD : Serial.println("Wakeup caused by touchpad"); break;
+    case ESP_SLEEP_WAKEUP_ULP : Serial.println("Wakeup caused by ULP program"); break;
+    default : Serial.printf("Wakeup was not caused by deep sleep: %d\n",wakeup_reason); break;
+  }
+}
+
 void setup()
 {
-  pinMode(IO_ENABLE, OUTPUT);
-  digitalWrite(IO_ENABLE,LOW);
-  pinMode(DONE_PIN, OUTPUT);
-  digitalWrite(DONE_PIN, LOW); 
 
-  preferences.begin("trashcan", false);
+  // gpio_wakeup_disable((gpio_num_t)(INT_PIN));
 
   // Initialize serial for output.
   SerialPort.begin(9600);
-  // while(!SerialPort) ;
+  while(!SerialPort);
+  // delay(2000);
 
   // Enable PWREN pin if present
   if (PWREN_PIN >= 0) {
     pinMode(PWREN_PIN, OUTPUT);
     digitalWrite(PWREN_PIN, HIGH);
+    // gpio_hold_en((gpio_num_t)PWREN_PIN);
     delay(10);
   }
 
@@ -141,37 +155,40 @@ void setup()
 
   sensor_VL53L8CX_top.vl53l8cx_set_resolution(res);
 
-  if(!preferences.isKey("t_dim")) {
-    Serial.println("sensing initial dimensions");
-    measure_trashcan(trashcan_dimensions);
-    preferences.putBytes("t_dim", trashcan_dimensions, res*sizeof(bool));
-  } else {
-    preferences.getBytes("t_dim", trashcan_dimensions, res*sizeof(bool));
-    Serial.println("initial dimensions recovered");
-    for (j = 0; j < number_of_zones; j += zones_per_line)
-    {  
-      for (l = 0; l < VL53L8CX_NB_TARGET_PER_ZONE; l++)
-      {
-        // Print distance and status.
-        for (k = (zones_per_line - 1); k >= 0; k--)
-        {
-          SerialPort.print(" ");
-          SerialPort.print(trashcan_dimensions[(VL53L8CX_NB_TARGET_PER_ZONE * (j+k)) + l]);
-          SerialPort.print(" ");
-        }
-      }
-      SerialPort.println("");
-    }
-  }
+  Serial.println("sensing initial dimensions");
+  measure_trashcan(trashcan_dimensions);
+
+  // Disable thresholds detection.
+  sensor_VL53L8CX_top.vl53l8cx_set_detection_thresholds_enable(0U);
+
+  setThresholds(100, trashcan_full);
+
+  print_wakeup_reason();  
+
+  // // Set interrupt pin
+  // pinMode(INT_PIN, INPUT);
+  // attachInterrupt(digitalPinToInterrupt(INT_PIN), measure, FALLING);
 
   Serial.println("starting to measure");
   // Start Measurements.
   sensor_VL53L8CX_top.vl53l8cx_start_ranging(); 
-  attachInterrupt(0, clearPreferences, CHANGE);
+  delay(1000);
+  // LMIC_shutdown();
+  enterSleepMode();
 }
 
 void loop()
 {
+  // trashcan_full = !trashcan_full;
+  // Serial.println("trashcan " + String((trashcan_full)?"full":"empty"));
+  // lora_in_progress = true;
+  // notifyViaLora();
+  // // execute scheduled jobs and events for Lora
+  // while(lora_in_progress) {
+  //   os_runloop_once();
+  //   delay(1);
+  // }
+  // delay(3000);
   VL53L8CX_ResultsData Results;
   uint8_t NewDataReady = 0;
   uint8_t status;
@@ -181,23 +198,36 @@ void loop()
   } while (!NewDataReady);
 
   if ((!status) && (NewDataReady != 0)) {
+    delay(2000);
+    // print_wakeup_reason();  
     status = sensor_VL53L8CX_top.vl53l8cx_get_ranging_data(&Results);
-    trashcan_full = checkMajority(&Results, false);
-    Serial.println("trashcan " + String((trashcan_full)?"full":"empty"));
-    lora_in_progress = true;
-    notifyViaLora();
-    // execute scheduled jobs and events for Lora
-    while(lora_in_progress) {
-      os_runloop_once();
-      delay(1);
+    // print_result(&Results);
+    if(checkMajority(&Results, trashcan_full)) {
+      trashcan_full = !trashcan_full;
+      Serial.println("trashcan " + String((trashcan_full)?"full":"empty"));
+      lora_in_progress = true;
+      // setup_lora();
+      notifyViaLora();
+      // LMIC_shutdown();
+      // execute scheduled jobs and events for Lora
+      while(lora_in_progress) {
+        // Serial.println("os_runloop_once();");
+        os_runloop_once();
+        delay(1);
+      }
     }
+    interruptCount = 0;
+    delay(1000);
+    sensor_VL53L8CX_top.begin();
+    sensor_VL53L8CX_top.init_sensor();
+    sensor_VL53L8CX_top.vl53l8cx_set_resolution(res);
+    // Disable thresholds detection.
+    sensor_VL53L8CX_top.vl53l8cx_set_detection_thresholds_enable(0U);
+    setThresholds((trashcan_full)?500:100, trashcan_full);
+    // Start Measurements.
+    sensor_VL53L8CX_top.vl53l8cx_start_ranging(); 
     enterSleepMode();
   }
-}
-
-void clearPreferences() {
-  Serial.println("clearing preferences...");
-  preferences.clear();
 }
 
 bool checkMajority(VL53L8CX_ResultsData *Result, bool checkEmpty) {
@@ -206,7 +236,7 @@ bool checkMajority(VL53L8CX_ResultsData *Result, bool checkEmpty) {
   int threshold = (checkEmpty)?500:100;
   for (i = 0; i < res; i++)
   {
-    if(trashcan_dimensions[i]) {
+    if(trashcan_dimensions[i]>trashcan_distance_floor) {
       total++;
       if((!checkEmpty) ? ((long)(Result)->distance_mm[i] < threshold) : ((long)(Result)->distance_mm[i] > threshold)) {
         positive++;
@@ -218,12 +248,19 @@ bool checkMajority(VL53L8CX_ResultsData *Result, bool checkEmpty) {
 
 void enterSleepMode(void)
 {
-  digitalWrite(DONE_PIN, LOW); 
-  digitalWrite(DONE_PIN, HIGH); 
-  delay(10);
+    // esp_sleep_pd_config(ESP_PD_DOMAIN_VDDSDIO, ESP_PD_OPTION_ON);
+
+    // gpio_hold_en((gpio_num_t)8);
+    // rtc_gpio_pulldown_dis((gpio_num_t)8);
+    // rtc_gpio_pullup_en((gpio_num_t)8);
+    // rtc_gpio_pulldown_en((gpio_num_t)INT_PIN);
+    // rtc_gpio_pullup_dis((gpio_num_t)INT_PIN);
+    // delay(200);
+    esp_sleep_enable_ext0_wakeup((gpio_num_t)(INT_PIN),1);
+    esp_light_sleep_start();
 }
 
-void measure_trashcan(bool trashcan_dimensions[]) {
+void measure_trashcan(long trashcan_dimensions[]) {
   sensor_VL53L8CX_top.vl53l8cx_start_ranging(); 
   int initialized = 3;
   VL53L8CX_ResultsData Results;
@@ -243,7 +280,7 @@ void measure_trashcan(bool trashcan_dimensions[]) {
       {
         //perform data processing here...
         if((long)(&Results)->target_status[j] !=255){
-          trashcan_dimensions[j] = (long)(&Results)->distance_mm[j]>trashcan_distance_floor;
+          trashcan_dimensions[j] = (long)(&Results)->distance_mm[j];
         }
       }
       initialized--;
@@ -271,7 +308,8 @@ void tx_callback(osjob_t* job) {
 }
 
 void notifyViaLora() {
-  tx(String(trashcan_full).c_str(), tx_callback); 
+  do_send(&sendjob, trashcan_full);
+  // tx(String(trashcan_full).c_str(), tx_callback); 
 }
 
 void print_result(VL53L8CX_ResultsData *Result)
@@ -311,7 +349,7 @@ void setThresholds(int threshold, bool far) {
   // Configure thresholds on each active zone
   for (i = 0; i < res; i++)
   {
-    if(trashcan_dimensions[i]) {
+    if(trashcan_dimensions[i]>trashcan_distance_floor) {
       thresholds[i].zone_num = i;
       thresholds[i].measurement = VL53L8CX_DISTANCE_MM;
       thresholds[i].type = (!far) ? VL53L8CX_LESS_THAN_EQUAL_MIN_CHECKER : VL53L8CX_GREATER_THAN_MAX_CHECKER;
