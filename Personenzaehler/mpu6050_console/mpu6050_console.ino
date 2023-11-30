@@ -13,10 +13,9 @@ const int   daylightOffset_sec = 3600;
 #define LED_PIN 1
 Freenove_ESP32_WS2812 led = Freenove_ESP32_WS2812(1, LED_PIN, 0, TYPE_GRB);
 
-const char* ssid       = "VIP";
-const char* password   = "$44!ONLY!WithPermission:33";
+const char* ssid       = "SSID";
+const char* password   = "Password";
 
-int start = 0;
 long measurementStartTime = 0;
 long timer = 0;
 struct tm timeinfo;
@@ -69,8 +68,10 @@ void setup() {
   setLED(0,60,0);
 
   measurementStartTime = millis();
-  while (start=1) {
-    timer = measurementStartTime-millis();
+}
+
+void loop() {
+  timer = millis()-measurementStartTime;
     time_t now;
     struct tm timeinfo;
     if (!getLocalTime(&timeinfo)) {
@@ -83,7 +84,7 @@ void setup() {
     mpu.getEvent(&a, &g, &temp);
 
     append = ""; 
-    append += String(now,DEC)+"."+String(millis()-measurementStartTime, 6); 
+    append += String(now,DEC)+"."+String(millis()); 
     append += ",";
     append += String(a.acceleration.x, 6);
     append += ",";
@@ -98,11 +99,7 @@ void setup() {
     append += String(g.gyro.z, 6);
     append += "\n"; //
 
-    Serial.print(append);
+    Serial.print(millis());
 
-    delay(5);
-  };
-}
-
-void loop() { 
+    //delay(5); 
 }
