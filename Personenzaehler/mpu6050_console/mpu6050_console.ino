@@ -35,9 +35,9 @@ void setup() {
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) {
       delay(500);
-      Serial.print(".");
+      // Serial.print(".");
   }
-  Serial.println(" CONNECTED");
+  // Serial.println(" CONNECTED");
   
   //init and get the time
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
@@ -62,7 +62,7 @@ void setup() {
     return;
   }
   
-  Serial.println("MPU6050 gefunden!");
+  // Serial.println("MPU6050 gefunden!");
   mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
   mpu.setGyroRange(MPU6050_RANGE_500_DEG);
   setLED(0,60,0);
@@ -84,7 +84,7 @@ void loop() {
     mpu.getEvent(&a, &g, &temp);
 
     append = ""; 
-    append += String(now,DEC)+"."+String(millis()); 
+    append += String(now)+","+String(millis()); 
     append += ",";
     append += String(a.acceleration.x, 6);
     append += ",";
@@ -99,7 +99,7 @@ void loop() {
     append += String(g.gyro.z, 6);
     append += "\n"; //
 
-    Serial.print(millis());
+    Serial.print(append);
 
-    //delay(5); 
+    delay(10); 
 }

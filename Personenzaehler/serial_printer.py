@@ -3,7 +3,13 @@ import serial
 
 def readserial(comport, baudrate):
 
-    ser = serial.Serial(comport, baudrate, timeout=0.1)         # 1/timeout is the frequency at which the port is read
+    try:
+        ser = serial.Serial(port='/dev/ttyACM0',   baudrate=115200, timeout=.1)
+    
+        ser.readline()
+    except:
+        print('arduino on port ACM1')
+        ser = serial.Serial(port='/dev/ttyACM1',   baudrate=115200, timeout=.1)
 
     while True:
         data = ser.readline().decode().strip()

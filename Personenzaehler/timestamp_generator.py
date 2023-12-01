@@ -14,6 +14,11 @@ import copy
 
 import matplotlib.pyplot as plt
 import numpy as np
+
+import tkinter as tk
+from tkinter import Scale
+from PIL import Image, ImageTk
+from step_gui import WeightSelectorApp
   
 num_picts = 50000
 interval = 0.1
@@ -26,7 +31,11 @@ save_dir = ''
 
 import serial
 
-arduino = serial.Serial(port='/dev/ttyACM0',   baudrate=115200, timeout=.1)
+try:
+    arduino = serial.Serial(port='/dev/ttyACM0',   baudrate=115200, timeout=.1)
+except:
+    print('arduino on port ACM1')
+    arduino = serial.Serial(port='/dev/ttyACM1',   baudrate=115200, timeout=.1)
 
 # Yolo
 import argparse
@@ -93,34 +102,96 @@ def list_ports():
 
 def record_vibrations(save_dir):
     global stopped_recording
+    root = tk.Tk()
+    gui_step = WeightSelectorApp(root)
+    root.update()
     backlog = []
     (save_dir / "no_step").mkdir(parents=True, exist_ok=True)
     while not stop_recording:
+        root.update()
         no_step_path = Path(increment_path((save_dir / "no_step" / "no_step"), exist_ok=False, ending='.txt'))  # increment run
         file = open(no_step_path, "w")
-        file.write("timestamp,AccX.AccY,AccZ,GyroX,GyroY,GyroZ\n")
+        file.write("timestamp,millis,AccX.AccY,AccZ,GyroX,GyroY,GyroZ\n")
+        serial_response=False
         while last_recording_of_step <= 0 and not stop_recording:
-            backlog.append(arduino.readline().decode())
-            if len(backlog) > 200:
+            root.update()
+            line = arduino.readline().decode()
+            backlog.append(line)
+            if not serial_response and line and line!='':
+                serial_response = True
+            if len(backlog) > 300:
                 file.write(backlog[0])
                 backlog.pop(0)
+        if not serial_response:
+            terminate_script('manual')
         file.close()
 
         if not stop_recording:
+            file_dir = str(save_dir / str(start_step))
             file_path = str(save_dir / str(start_step) / "step.txt")
             file = open(file_path, "w")
-            file.write("timestamp,AccX.AccY,AccZ,GyroX,GyroY,GyroZ\n")
-            while last_recording_of_step > 0 and not stop_recording:
-                backlog.append(arduino.readline().decode())
-                if len(backlog) > 200:
+            file.write("timestamp,millis,AccX.AccY,AccZ,GyroX,GyroY,GyroZ\n")
+            serial_response=False
+            i=0
+            while (last_recording_of_step > 0 or i<100) and not stop_recording:
+                root.update()
+                line = arduino.readline().decode()
+                backlog.append(line)
+                if not serial_response and line and line!='':
+                    serial_response = True
+                if len(backlog) > 300:
                     file.write(backlog[0])
                     backlog.pop(0)
+                if last_recording_of_step <= 0:
+                    i=i+1
             for element in backlog:
                 file.write(element)
             backlog = []
             file.close()
-            print("step!")
+            if not serial_response:
+                terminate_script('manual')
+            else:    
+
+                print('step!')
+                try:
+                    data = np.genfromtxt(file_path, delimiter=',', skip_header=1)  # Skip header
+
+                    # Extract timestamp and acceleration data
+                    start_time = data[0, 1]
+                    timestamp = [dat-start_time for dat in data[:, 1]]
+                    acc_x = data[:, 2]
+                    acc_y = data[:, 3]
+                    acc_z = data[:, 4]
+
+                    # Plotting
+                    plt.figure(figsize=(10, 6))
+
+                    plt.plot(timestamp, acc_x, label='AccX')
+                    plt.plot(timestamp, acc_y, label='AccY')
+                    plt.plot(timestamp, acc_z, label='AccZ')
+
+                    plt.title('Vibration Data')
+                    plt.xlabel('milliseconds')
+                    plt.ylabel('Acceleration')
+                    plt.legend()
+                    plt.grid(True)
+                    file_path_without_extension, file_extension = os.path.splitext(file_path)
+                    
+                    plt.savefig(file_path_without_extension + '.png')
+
+                    gui_step.set_step_plot(file_path_without_extension + '.png')
+                    gui_step.update_step_vid(webcam_in_folder(file_dir))
+                except:
+                    print(file_path)
     stopped_recording.set()
+
+def webcam_in_folder(dir):
+    paths = []
+    for i,file in enumerate(os.listdir(dir)):
+        if file.endswith(".jpg") and not 'step' in file:
+            file_path = os.path.join(dir, file)
+            paths.append(file_path)
+    return paths
 
 def check_if_overstepped_center(xyxy, img):
     center = img.shape[1]/2
@@ -169,7 +240,7 @@ def detect(save_img=False):
 
     # Get names and colors
     names = model.module.names if hasattr(model, 'module') else model.names
-    colors = [[random.randint(0, 255) for _ in range(3)] for _ in names]
+    colors = [[150,150,255]]
 
     # Run inference
     if device.type != 'cpu':
@@ -178,6 +249,7 @@ def detect(save_img=False):
     old_img_b = 1
 
     t0 = time.time()
+
 
     record_thread = threading.Thread(target=record_vibrations, args=(save_dir,))
     record_thread.start()
@@ -239,6 +311,7 @@ def detect(save_img=False):
                             has_overstepped_center = check_if_overstepped_center(xyxy,im0)
 
                 if has_overstepped_center:
+                    cv2.putText(im0, 'Step!', (int(im0.shape[1]/2-10),int(im0.shape[0]-20)), cv2.FONT_HERSHEY_SIMPLEX, 1, colors[0], 2, cv2.LINE_AA) 
                     if last_recording_of_step <= 0:
                         start_step = t1
                         (save_dir / str(start_step)).mkdir(parents=True, exist_ok=True)
@@ -270,75 +343,76 @@ def detect(save_img=False):
     print(f'Done. ({time.time() - t0:.3f}s)')
 
 def terminate_script(key):
+    print('terminating...')
+    print(key)
     global stop_recording 
-    stop_recording = True
-    stopped_recording.wait()
+    if key == 'manual' or key=='c' or key==keyboard.Key.ctrl or (key.char and key.char=='c'):
+        stop_recording = True
+        stopped_recording.wait()
 
-    directories = [x[0] for x in os.walk(save_dir)]
-    for dir in directories:
+        directories = [x[0] for x in os.walk(save_dir)]
+        for dir in directories:
+            if 'no_step' in dir:
+                for i,file in enumerate(os.listdir(dir)):
+                    if file.endswith(".txt"):
+                        file_path = os.path.join(dir, file)
+                        try:
+                            data = np.genfromtxt(file_path, delimiter=',', skip_header=1)  # Skip header
 
-        print(dir)
-        if 'no_step' in dir:
-            for i,file in enumerate(os.listdir(dir)):
-                file_path = os.path.join(dir, file)
-                try:
-                    data = np.genfromtxt(file_path, delimiter=',', skip_header=1)  # Skip header
+                            # Extract timestamp and acceleration data
+                            timestamp = data[:, 0]
+                            acc_x = data[:, 1]
+                            acc_y = data[:, 2]
+                            acc_z = data[:, 3]
 
-                    # Extract timestamp and acceleration data
-                    timestamp = data[:, 0]
-                    acc_x = data[:, 1]
-                    acc_y = data[:, 2]
-                    acc_z = data[:, 3]
+                            # Plotting
+                            plt.figure(figsize=(10, 6))
 
-                    # Plotting
-                    plt.figure(figsize=(10, 6))
+                            plt.plot(timestamp, acc_x, label='AccX')
+                            plt.plot(timestamp, acc_y, label='AccY')
+                            plt.plot(timestamp, acc_z, label='AccZ')
 
-                    plt.plot(timestamp, acc_x, label='AccX')
-                    plt.plot(timestamp, acc_y, label='AccY')
-                    plt.plot(timestamp, acc_z, label='AccZ')
+                            plt.title('Vibration Data')
+                            plt.xlabel('Timestamp')
+                            plt.ylabel('Acceleration')
+                            plt.legend()
+                            plt.grid(True)
+                            file_path_without_extension, file_extension = os.path.splitext(file_path)
+                            
+                            plt.savefig(file_path_without_extension + '.png')
+                        except:
+                            print(file_path)
+            else:
+                for i,file in enumerate(os.listdir(dir)):
+                    if 'step' in file and file.endswith(".txt"):
+                        file_path = os.path.join(dir, file)
+                        try:
+                            data = np.genfromtxt(file_path, delimiter=',', skip_header=1)  # Skip header
 
-                    plt.title('Vibration Data')
-                    plt.xlabel('Timestamp')
-                    plt.ylabel('Acceleration')
-                    plt.legend()
-                    plt.grid(True)
-                    file_path_without_extension, file_extension = os.path.splitext(file_path)
-                    
-                    plt.savefig(file_path_without_extension + '.png')
-                except:
-                    print("vibrations couldnt be plotted")
-        else:
-            for i,file in enumerate(os.listdir(dir)):
-                print(file)
-                if 'step' in file:
-                    file_path = os.path.join(dir, file)
-                    try:
-                        data = np.genfromtxt(file_path, delimiter=',', skip_header=1)  # Skip header
+                            # Extract timestamp and acceleration data
+                            timestamp = data[:, 0]
+                            acc_x = data[:, 1]
+                            acc_y = data[:, 2]
+                            acc_z = data[:, 3]
 
-                        # Extract timestamp and acceleration data
-                        timestamp = data[:, 0]
-                        acc_x = data[:, 1]
-                        acc_y = data[:, 2]
-                        acc_z = data[:, 3]
+                            # Plotting
+                            plt.figure(figsize=(10, 6))
 
-                        # Plotting
-                        plt.figure(figsize=(10, 6))
+                            plt.plot(timestamp, acc_x, label='AccX')
+                            plt.plot(timestamp, acc_y, label='AccY')
+                            plt.plot(timestamp, acc_z, label='AccZ')
 
-                        plt.plot(timestamp, acc_x, label='AccX')
-                        plt.plot(timestamp, acc_y, label='AccY')
-                        plt.plot(timestamp, acc_z, label='AccZ')
-
-                        plt.title('Vibration Data')
-                        plt.xlabel('Timestamp')
-                        plt.ylabel('Acceleration')
-                        plt.legend()
-                        plt.grid(True)
-                        file_path_without_extension, file_extension = os.path.splitext(file_path)
-                        
-                        plt.savefig(file_path_without_extension + '.png')
-                    except:
-                        print(file_path)
-    sys.exit()
+                            plt.title('Vibration Data')
+                            plt.xlabel('Timestamp')
+                            plt.ylabel('Acceleration')
+                            plt.legend()
+                            plt.grid(True)
+                            file_path_without_extension, file_extension = os.path.splitext(file_path)
+                            
+                            plt.savefig(file_path_without_extension + '.png')
+                        except:
+                            print(file_path)
+        sys.exit()
 
 listener = keyboard.Listener(
     on_press=terminate_script)
