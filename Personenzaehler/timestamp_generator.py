@@ -28,14 +28,16 @@ last_recording_of_step = 0
 stop_recording = False
 stopped_recording = threading.Event()
 save_dir = ''
+port = '/dev/ttyACM0'
 
 import serial
 
 try:
-    arduino = serial.Serial(port='/dev/ttyACM0',   baudrate=115200, timeout=.1)
+    arduino = serial.Serial(port=port,   baudrate=115200, timeout=.1)
 except:
     print('arduino on port ACM1')
-    arduino = serial.Serial(port='/dev/ttyACM1',   baudrate=115200, timeout=.1)
+    port = '/dev/ttyACM1'
+    arduino = serial.Serial(port=port,   baudrate=115200, timeout=.1)
 
 # Yolo
 import argparse
@@ -101,88 +103,98 @@ def list_ports():
     return available_ports,working_ports,non_working_ports
 
 def record_vibrations(save_dir):
-    global stopped_recording
-    root = tk.Tk()
-    gui_step = WeightSelectorApp(root)
-    root.update()
-    backlog = []
-    (save_dir / "no_step").mkdir(parents=True, exist_ok=True)
-    while not stop_recording:
+    with serial.Serial(port=port, baudrate=115200) as ser:
+        global stopped_recording
+        root = tk.Tk()
+        gui_step = WeightSelectorApp(root)
         root.update()
-        no_step_path = Path(increment_path((save_dir / "no_step" / "no_step"), exist_ok=False, ending='.txt'))  # increment run
-        file = open(no_step_path, "w")
-        file.write("timestamp,millis,AccX.AccY,AccZ,GyroX,GyroY,GyroZ\n")
-        serial_response=False
-        while last_recording_of_step <= 0 and not stop_recording:
+        backlog = []
+        (save_dir / "no_step").mkdir(parents=True, exist_ok=True)
+        while not stop_recording:
             root.update()
-            line = arduino.readline().decode()
-            backlog.append(line)
-            if not serial_response and line and line!='':
-                serial_response = True
-            if len(backlog) > 300:
-                file.write(backlog[0])
-                backlog.pop(0)
-        if not serial_response:
-            terminate_script('manual')
-        file.close()
-
-        if not stop_recording:
-            file_dir = str(save_dir / str(start_step))
-            file_path = str(save_dir / str(start_step) / "step.txt")
-            file = open(file_path, "w")
+            no_step_path = Path(increment_path((save_dir / "no_step" / "no_step"), exist_ok=False, ending='.txt'))  # increment run
+            file = open(no_step_path, "w")
             file.write("timestamp,millis,AccX.AccY,AccZ,GyroX,GyroY,GyroZ\n")
             serial_response=False
-            i=0
-            while (last_recording_of_step > 0 or i<100) and not stop_recording:
+            for line in ser:
                 root.update()
-                line = arduino.readline().decode()
+                line = line.decode('utf-8')
                 backlog.append(line)
                 if not serial_response and line and line!='':
                     serial_response = True
                 if len(backlog) > 300:
                     file.write(backlog[0])
                     backlog.pop(0)
-                if last_recording_of_step <= 0:
-                    i=i+1
-            for element in backlog:
-                file.write(element)
-            backlog = []
-            file.close()
+                if last_recording_of_step > 0 or stop_recording:
+                    print("break")
+                    break
             if not serial_response:
                 terminate_script('manual')
-            else:    
+            file.close()
 
-                print('step!')
-                try:
-                    data = np.genfromtxt(file_path, delimiter=',', skip_header=1)  # Skip header
+            if not stop_recording:
+                file_dir = str(save_dir / str(start_step))
+                file_path = str(save_dir / str(start_step) / "step.txt")
+                file = open(file_path, "w")
+                file.write("timestamp,millis,AccX.AccY,AccZ,GyroX,GyroY,GyroZ\n")
+                serial_response=False
+                i=0
+                for line in ser:
+                    root.update()
+                    line = line.decode('utf-8')
+                    backlog.append(line)
+                    if not serial_response and line and line!='':
+                        serial_response = True
+                    if len(backlog) > 300:
+                        file.write(backlog[0])
+                        backlog.pop(0)
+                    if last_recording_of_step <= 0:
+                        i=i+1
+                    if (last_recording_of_step <= 0 and i>100) or stop_recording:
+                        print("break")
+                        break
+                for element in backlog:
+                    file.write(element)
+                backlog = []
+                file.close()
+                if not serial_response:
+                    terminate_script('manual')
+                else:   
+                    print('step!')
+                    try:
+                        data = np.genfromtxt(file_path, delimiter=',', skip_header=1)  # Skip header
 
-                    # Extract timestamp and acceleration data
-                    start_time = data[0, 1]
-                    timestamp = [dat-start_time for dat in data[:, 1]]
-                    acc_x = data[:, 2]
-                    acc_y = data[:, 3]
-                    acc_z = data[:, 4]
+                        # Extract timestamp and acceleration data
+                        start_time = data[0, 1]
+                        timestamp = [dat-start_time for dat in data[:, 1]]
+                        acc_x = data[:, 2]
+                        acc_y = data[:, 3]
+                        acc_z = data[:, 4]
 
-                    # Plotting
-                    plt.figure(figsize=(10, 6))
+                        # Plotting
+                        plt.figure(figsize=(10, 6))
 
-                    plt.plot(timestamp, acc_x, label='AccX')
-                    plt.plot(timestamp, acc_y, label='AccY')
-                    plt.plot(timestamp, acc_z, label='AccZ')
+                        plt.plot(timestamp, acc_x, label='AccX')
+                        plt.plot(timestamp, acc_y, label='AccY')
+                        plt.plot(timestamp, acc_z, label='AccZ')
 
-                    plt.title('Vibration Data')
-                    plt.xlabel('milliseconds')
-                    plt.ylabel('Acceleration')
-                    plt.legend()
-                    plt.grid(True)
-                    file_path_without_extension, file_extension = os.path.splitext(file_path)
-                    
-                    plt.savefig(file_path_without_extension + '.png')
+                        plt.title('Vibration Data')
+                        plt.xlabel('milliseconds')
+                        plt.ylabel('Acceleration')
+                        plt.legend()
+                        plt.grid(True)
+                        file_path_without_extension, file_extension = os.path.splitext(file_path)
+                        
+                        plt.savefig(file_path_without_extension + '.png')
 
-                    gui_step.set_step_plot(file_path_without_extension + '.png')
-                    gui_step.update_step_vid(webcam_in_folder(file_dir))
-                except:
-                    print(file_path)
+                        gui_step.init_form_view(root,file_path_without_extension + '.png',webcam_in_folder(file_dir))
+                        # gui_step.set_step_plot(file_path_without_extension + '.png')
+                        # gui_step.update_step_vid(webcam_in_folder(file_dir))
+                        gui_step.set_step_folder(file_dir)
+                    except:
+                        print(file_path)
+    
+    terminate_script('manual')
     stopped_recording.set()
 
 def webcam_in_folder(dir):
