@@ -13,6 +13,7 @@ class WeightSelectorApp:
         self.top_frame = tk.Frame(root)
         self.mid_frame = tk.Frame(root)
         self.bottom_frame = tk.Frame(root)
+        self.footer_frame = tk.Frame(self.root)
 
         self.init_wait_view()
 
@@ -23,6 +24,7 @@ class WeightSelectorApp:
         self.wait_view = False
 
         self.wait_frame.destroy()
+        self.footer_frame.destroy()
 
         self.top_frame.destroy()
         self.mid_frame.destroy()
@@ -41,7 +43,7 @@ class WeightSelectorApp:
         self.mid_frame.pack(pady=10)
 
         self.step_plot = Image.open(step_plot_path)
-        self.step_plot = self.step_plot.resize((1000, 600))
+        self.step_plot = self.step_plot.resize((800, 480))
         self.step_plot = ImageTk.PhotoImage(self.step_plot)
 
         self.step_vids = step_vid_path
@@ -56,13 +58,13 @@ class WeightSelectorApp:
         self.rotate_vid_image()  # Initial update
 
         self.bottom_frame = tk.Frame(root)
-        self.bottom_frame.pack()
+        self.bottom_frame.pack(pady=50)
 
         # Information
         labeltext = textwrap.fill("We would like to use this data train a neural network to detect steps through ground vibration."
                                    + " If you wouldnt mind, it would help us out greatly, if you could also provide us your approximate weight and age.", width=150)
         self.info_label = tk.Label(self.bottom_frame, text=labeltext, font=("Arial", 16))
-        self.info_label.pack()
+        self.info_label.pack(pady=10)
 
         # Weight scale
         self.weight_label = tk.Label(self.bottom_frame, text="Select your weight:", font=("Arial", 16))
@@ -84,19 +86,47 @@ class WeightSelectorApp:
 
         self.step_folder = ''
 
+        self.footer_frame = tk.Frame(self.root)
+        self.footer_frame.pack(padx=10, pady=10)
+        self.init_footer(self.footer_frame)
+
     def init_wait_view(self):
         self.wait_view = True
         # Congrats view
         self.top_frame.destroy()
         self.mid_frame.destroy()
         self.bottom_frame.destroy()
+        self.footer_frame.destroy()
 
         self.wait_frame.destroy()
         self.wait_frame = tk.Frame(self.root)
         self.wait_frame.pack(padx=10, pady=10)
 
-        wait_label = tk.Label(self.wait_frame, text="waiting for step...", width=1620, height=900)
-        wait_label.pack(padx=5, pady=5)
+        wait_label = tk.Label(self.wait_frame, text="waiting for step.....", width=1620, height=45, font=("Arial", 16))
+        wait_label.pack()
+        self.init_footer(self.wait_frame)
+
+    def init_footer(self, frame):
+
+        contact_label = tk.Label(frame, text="If you have any questions about this, please contact: p.scharf@reedu.de (R.105)",font=("Arial", 16))
+        contact_label.pack(side=tk.LEFT, padx=100)
+
+        self.tinyaiot_logo = Image.open('logos/tinyAIoT_logo.png')
+        self.tinyaiot_logo = self.tinyaiot_logo.resize((105, 36))
+        self.tinyaiot_logo = ImageTk.PhotoImage(self.tinyaiot_logo)
+
+        self.tinyaiot_logo_label = tk.Label(frame, image=self.tinyaiot_logo)
+        self.tinyaiot_logo_label.pack(side=tk.RIGHT, padx=10)
+
+        self.ifgi_logo = Image.open('logos/ifgi_logo.png')
+        self.ifgi_logo = self.ifgi_logo.resize((105, 36))
+        self.ifgi_logo = ImageTk.PhotoImage(self.ifgi_logo)
+
+        self.ifgi_logo_label = tk.Label(frame, image=self.ifgi_logo)
+        self.ifgi_logo_label.pack(side=tk.RIGHT, padx=10)
+
+    def destroy_all_frames(self):
+        self.root.destroy()
 
     def submit_data(self):
         selected_weight = self.weight_scale.get()
@@ -113,7 +143,7 @@ class WeightSelectorApp:
         if not self.wait_view:
             self.step_vid_path = self.step_vids[next(self.step_vid_index)]
             self.step_vid = Image.open(self.step_vid_path)
-            self.step_vid = self.step_vid.resize((600, 450))
+            self.step_vid = self.step_vid.resize((540, 405))
             self.step_vid = ImageTk.PhotoImage(self.step_vid)
             self.step_vid_label.config(image=self.step_vid)
             self.step_vid_label.image = self.step_vid  # Keep a reference to avoid garbage collection

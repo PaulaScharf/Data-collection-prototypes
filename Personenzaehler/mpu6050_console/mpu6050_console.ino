@@ -19,6 +19,9 @@ const char* password   = "Password";
 long measurementStartTime = 0;
 long timer = 0;
 struct tm timeinfo;
+time_t now;
+
+sensors_event_t a, g, temp;
 
 void setLED(uint8_t r,uint8_t g,uint8_t b) {
   led.setLedColorData(0, r, g, b);
@@ -28,6 +31,9 @@ void setLED(uint8_t r,uint8_t g,uint8_t b) {
 
 String append;
 void setup() {
+  led.begin();
+  led.setBrightness(10);  
+  setLED(60,60,0);
   Serial.begin(115200);
 
   //connect to WiFi
@@ -50,6 +56,12 @@ void setup() {
   WiFi.disconnect(true);
   WiFi.mode(WIFI_OFF);
 
+
+  led.begin();
+  led.setBrightness(10);  
+  setLED(60,60,0);
+  
+  
   led.begin();
   led.setBrightness(10);  
   setLED(60,60,0);
@@ -71,35 +83,32 @@ void setup() {
 }
 
 void loop() {
-  timer = millis()-measurementStartTime;
-    time_t now;
-    struct tm timeinfo;
-    if (!getLocalTime(&timeinfo)) {
-      Serial.println("Failed to obtain time");
-      return;
-    }
-    time(&now);
+  if (!getLocalTime(&timeinfo)) {
+    Serial.println("Failed to obtain time");
+    return;
+  }
+  time(&now);
 
-    sensors_event_t a, g, temp;
-    mpu.getEvent(&a, &g, &temp);
+  mpu.getEvent(&a, &g, &temp);
 
-    append = ""; 
-    append += String(now)+","+String(millis()); 
-    append += ",";
-    append += String(a.acceleration.x, 6);
-    append += ",";
-    append += String(a.acceleration.y, 6);
-    append += ",";
-    append += String(a.acceleration.z, 6);
-    append += ",";
-    append += String(g.gyro.x, 6);
-    append += ",";
-    append += String(g.gyro.y, 6);
-    append += ",";
-    append += String(g.gyro.z, 6);
-    append += "\n"; //
+  append = ""; 
+  append += String(now)+","+String(millis()); 
+  append += ",";
+  append += String(a.acceleration.x, 6);
+  append += ",";
+  append += String(a.acceleration.y, 6);
+  append += ",";
+  append += String(a.acceleration.z, 6);
+  append += ",";
+  append += String(g.gyro.x, 6);
+  append += ",";
+  append += String(g.gyro.y, 6);
+  append += ",";
+  append += String(g.gyro.z, 6);
+  append += "\n"; //
 
-    Serial.print(append);
-
-    delay(10); 
+  setLED(60,0,0);
+  Serial.print(append);
+  delay(1); 
+  setLED(0,60,0);
 }

@@ -32,12 +32,12 @@ port = '/dev/ttyACM0'
 
 import serial
 
-try:
-    arduino = serial.Serial(port=port,   baudrate=115200, timeout=.1)
-except:
-    print('arduino on port ACM1')
-    port = '/dev/ttyACM1'
-    arduino = serial.Serial(port=port,   baudrate=115200, timeout=.1)
+# try:
+#     arduino = serial.Serial(port=port,   baudrate=115200, timeout=.1)
+# except:
+#     print('arduino on port ACM1')
+#     port = '/dev/ttyACM1'
+#     arduino = serial.Serial(port=port,   baudrate=115200, timeout=.1)
 
 # Yolo
 import argparse
@@ -110,6 +110,7 @@ def record_vibrations(save_dir):
         root.update()
         backlog = []
         (save_dir / "no_step").mkdir(parents=True, exist_ok=True)
+        (save_dir / "no_step" / "imgs").mkdir(parents=True, exist_ok=True)
         while not stop_recording:
             root.update()
             no_step_path = Path(increment_path((save_dir / "no_step" / "no_step"), exist_ok=False, ending='.txt'))  # increment run
@@ -126,7 +127,6 @@ def record_vibrations(save_dir):
                     file.write(backlog[0])
                     backlog.pop(0)
                 if last_recording_of_step > 0 or stop_recording:
-                    print("break")
                     break
             if not serial_response:
                 terminate_script('manual')
@@ -151,7 +151,6 @@ def record_vibrations(save_dir):
                     if last_recording_of_step <= 0:
                         i=i+1
                     if (last_recording_of_step <= 0 and i>100) or stop_recording:
-                        print("break")
                         break
                 for element in backlog:
                     file.write(element)
@@ -188,12 +187,10 @@ def record_vibrations(save_dir):
                         plt.savefig(file_path_without_extension + '.png')
 
                         gui_step.init_form_view(root,file_path_without_extension + '.png',webcam_in_folder(file_dir))
-                        # gui_step.set_step_plot(file_path_without_extension + '.png')
-                        # gui_step.update_step_vid(webcam_in_folder(file_dir))
                         gui_step.set_step_folder(file_dir)
                     except:
                         print(file_path)
-    
+    gui_step.destroy_all_frames()    
     terminate_script('manual')
     stopped_recording.set()
 
@@ -334,14 +331,14 @@ def detect(save_img=False):
                     cv2.imwrite(str(save_dir / str(start_step) / (str(t1)+".jpg")), im0)
                     cv2.imshow("Webcam Stream", im0)
                 else:
-                    cv2.imwrite(str(save_dir / "no_step" / (str(t1)+".jpg")), im0)
+                    cv2.imwrite(str(save_dir / "no_step" / "imgs" / (str(t1)+".jpg")), im0)
                     cv2.imshow("Webcam Stream", im0)
                     if last_recording_of_step>0 and (t1-last_recording_of_step)>0.6:
                         # os.rename(str(save_dir / str(start_step)), str(save_dir / (str(start_step)+"-"+str(last_recording_of_step))))
                         last_recording_of_step = 0
                         start_step = 0
             else:
-                cv2.imwrite(str(save_dir / "no_step" / (str(t1)+".jpg")), im0)
+                cv2.imwrite(str(save_dir / "no_step" / "imgs" / (str(t1)+".jpg")), im0)
                 cv2.imshow("Webcam Stream", im0)
                 if last_recording_of_step>0 and (t1-last_recording_of_step)>0.6:
                     # os.rename(str(save_dir / str(start_step)), str(save_dir / (str(start_step)+"-"+str(last_recording_of_step))))
@@ -358,6 +355,7 @@ def terminate_script(key):
     print('terminating...')
     print(key)
     global stop_recording 
+    cv2.destroyAllWindows()
     if key == 'manual' or key=='c' or key==keyboard.Key.ctrl or (key.char and key.char=='c'):
         stop_recording = True
         stopped_recording.wait()
