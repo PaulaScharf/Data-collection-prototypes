@@ -62,7 +62,7 @@
 #include <SPI.h>
 
 #define INT_PIN 3
-#define DONE_PIN 6
+#define DONE_PIN 7
 #define IO_ENABLE 8
 
 #define uS_TO_S_FACTOR 1000000  /* Conversion factor for micro seconds to seconds */
@@ -73,7 +73,7 @@ static osjob_t sendjob;
 #include <Preferences.h>
 Preferences preferences;
 
-bool trashcan_full = false;
+float fill_percentage = 0.;
 bool lora_in_progress = false;
 
 #define DEV_I2C Wire
@@ -118,7 +118,7 @@ void setup()
   Serial.println("initing Lora");
   setup_lora();
 
-  attachInterrupt(0, clearPreferences, CHANGE);
+  attachInterrupt(6, clearPreferences, RISING);
   setup_vl53l8cx();
 }
 
@@ -136,8 +136,8 @@ void loop()
   if ((!status) && (NewDataReady != 0)) {
     status = sensor_VL53L8CX_top.vl53l8cx_get_ranging_data(&Results);
     if (checkIfUpdated(&Results)) {
-      trashcan_full = checkMajority(&Results, false);
-      Serial.println("trashcan " + String((trashcan_full)?"full":"empty"));
+      fill_percentage = measureFill(&Results);
+      Serial.println("trashcan filled " + String(fill_percentage));
       lora_in_progress = true;
       notifyViaLora();
       // execute scheduled jobs and events for Lora
@@ -161,7 +161,19 @@ void clearPreferences() {
   preferences.clear();
 }
 
-
+// void clearTrashcanDimensions(bool cur_state) {
+//   bool prev_state;
+//   if(preferences.isKey("p_state")) {
+//     preferences.getBool("p_state", prev_state);
+//     if(prev_state != cur_state) {
+//       Serial.println("clearing trashcan dimensions...");
+//       preferences.remove("t_dim");
+//       preferences.putBool("p_state", prev_state);
+//     }
+//   } else {
+//     preferences.putBool("p_state", false);
+//   }
+// }
 
 void enterSleepMode(void)
 {
@@ -176,5 +188,5 @@ void tx_callback(osjob_t* job) {
 }
 
 void notifyViaLora() {
-  do_send(&sendjob, trashcan_full);
+  do_send(&sendjob, fill_percentage);
 }

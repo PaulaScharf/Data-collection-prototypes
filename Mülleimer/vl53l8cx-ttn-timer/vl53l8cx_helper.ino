@@ -8,14 +8,13 @@ String dataStr = "";
 
 VL53L8CX_DetectionThresholds thresholds[VL53L8CX_NB_THRESHOLDS];
 RTC_DATA_ATTR const int res = VL53L8CX_RESOLUTION_8X8;
-RTC_DATA_ATTR bool trashcan_dimensions[res];
+RTC_DATA_ATTR int trashcan_dimensions[res];
 
 bool EnableAmbient = false;
 bool EnableSignal = false;
 char report[256];
 volatile int interruptCount = 0;
 
-RTC_DATA_ATTR int trashcan_distance_floor = 500;
 uint8_t NewDataReady;
 uint8_t status;
 uint8_t number_of_zones = res;
@@ -45,9 +44,9 @@ void setup_vl53l8cx() {
   if(!preferences.isKey("t_dim")) {
     Serial.println("sensing initial dimensions");
     measure_trashcan(trashcan_dimensions);
-    preferences.putBytes("t_dim", trashcan_dimensions, res*sizeof(bool));
+    preferences.putBytes("t_dim", trashcan_dimensions, res*sizeof(int));
   } else {
-    preferences.getBytes("t_dim", trashcan_dimensions, res*sizeof(bool));
+    preferences.getBytes("t_dim", trashcan_dimensions, res*sizeof(int));
     Serial.println("initial dimensions recovered");
     for (j = 0; j < number_of_zones; j += zones_per_line)
     {  
@@ -68,8 +67,6 @@ void setup_vl53l8cx() {
   // Disable thresholds detection.
   sensor_VL53L8CX_top.vl53l8cx_set_detection_thresholds_enable(0U);
 
-  setThresholds(100, trashcan_full);
-
   // // Set interrupt pin
   // pinMode(INT_PIN, INPUT);
   // attachInterrupt(digitalPinToInterrupt(INT_PIN), measure, FALLING);
@@ -79,21 +76,21 @@ void setup_vl53l8cx() {
   sensor_VL53L8CX_top.vl53l8cx_start_ranging(); 
 }
 
-bool checkMajority(VL53L8CX_ResultsData *Result, bool checkEmpty) {
+float measureFill(VL53L8CX_ResultsData *Result) {
   float positive = 0.;
   float total = 0.;
-  int threshold = (checkEmpty)?500:100;
   for (i = 0; i < res; i++)
   {
-    if(trashcan_dimensions[i]) {
+    if(trashcan_dimensions[i] > 175) {
       total++;
       long curDistance = (long)(Result)->distance_mm[i];
-      if(validTargetStatus((int)(Result)->target_status[i]) && ((!checkEmpty) ? (curDistance < threshold) : (curDistance > threshold))) {
-        positive++;
+      if(validTargetStatus((int)(Result)->target_status[i]) && curDistance < trashcan_dimensions[i]) {
+        curDistance = max(curDistance-100, (long)0);
+        positive+=((float)trashcan_dimensions[i]-(float)curDistance)/(float)trashcan_dimensions[i];
       }
     }
   }
-  return (positive>0 && positive/total > 0.5);
+  return (positive>0.) ? positive/total : 1.;
 }
 
 bool checkIfUpdated(VL53L8CX_ResultsData *Result) {
@@ -116,7 +113,7 @@ bool validTargetStatus(int status) {
 }
 
 
-void measure_trashcan(bool trashcan_dimensions[]) {
+void measure_trashcan(int trashcan_dimensions[]) {
   sensor_VL53L8CX_top.vl53l8cx_start_ranging(); 
   int initialized = 3;
   VL53L8CX_ResultsData Results;
@@ -136,7 +133,7 @@ void measure_trashcan(bool trashcan_dimensions[]) {
       {
         //perform data processing here...
         if((long)(&Results)->target_status[j] !=255){
-          trashcan_dimensions[j] = (long)(&Results)->distance_mm[j]>trashcan_distance_floor;
+          trashcan_dimensions[j] = (long)(&Results)->distance_mm[j];
         }
       }
       initialized--;
@@ -196,7 +193,7 @@ void setThresholds(int threshold, bool far) {
   // Configure thresholds on each active zone
   for (i = 0; i < res; i++)
   {
-    if(trashcan_dimensions[i]>trashcan_distance_floor) {
+    if(trashcan_dimensions[i]>500) {
       thresholds[i].zone_num = i;
       thresholds[i].measurement = VL53L8CX_DISTANCE_MM;
       thresholds[i].type = (!far) ? VL53L8CX_LESS_THAN_EQUAL_MIN_CHECKER : VL53L8CX_GREATER_THAN_MAX_CHECKER;
@@ -215,4 +212,20 @@ void setThresholds(int threshold, bool far) {
 
   // Enable thresholds detection.
   sensor_VL53L8CX_top.vl53l8cx_set_detection_thresholds_enable(1U);
+}
+
+
+float calculateQuantile(float data[], int size, float quantile) {
+  // Sort the data array in ascending order
+  std::sort(data, data + size);
+
+  // Calculate the index corresponding to the quantile
+  int index = static_cast<int>((quantile / 100.0) * (size - 1));
+
+  // Interpolate the value at the calculated index
+  float lowerValue = data[index];
+  float upperValue = data[index + 1];
+  float interpolatedValue = lowerValue + (upperValue - lowerValue) * (quantile / 100.0 - static_cast<float>(index) / (size - 1));
+
+  return interpolatedValue;
 }

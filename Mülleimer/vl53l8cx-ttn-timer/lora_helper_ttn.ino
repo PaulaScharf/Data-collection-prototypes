@@ -58,17 +58,17 @@ CayenneLPP lpp(51);
 // first. When copying an EUI from ttnctl output, this means to reverse
 // the bytes. For TTN issued EUIs the last bytes should be 0xD5, 0xB3,
 // 0x70.
-static const u1_t PROGMEM APPEUI[8]={ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+static const u1_t PROGMEM APPEUI[8]={ xxx };
 void os_getArtEui (u1_t* buf) { memcpy_P(buf, APPEUI, 8);}
 
 // This should also be in little endian format, see above.
-static const u1_t PROGMEM DEVEUI[8]={ 0xA4, 0x2F, 0x06, 0xD0, 0x7E, 0xD5, 0xB3, 0x70 };
+static const u1_t PROGMEM DEVEUI[8]={ xxx };
 void os_getDevEui (u1_t* buf) { memcpy_P(buf, DEVEUI, 8);}
 
 // This key should be in big endian format (or, since it is not really a
 // number but a block of memory, endianness does not really apply). In
 // practice, a key taken from ttnctl can be copied as-is.
-static const u1_t PROGMEM APPKEY[16] = { 0x9C, 0xDA, 0x8A, 0x8C, 0x15, 0xE2, 0xC3, 0xB4, 0xCE, 0xBF, 0x28, 0xC6, 0xF5, 0x6E, 0x08, 0x81 };
+static const u1_t PROGMEM APPKEY[16] = { xxx };
 void os_getDevKey (u1_t* buf) {  memcpy_P(buf, APPKEY, 16);}
 
 static uint8_t mydata[] = "Hello, world!";
@@ -212,7 +212,7 @@ void onEvent (ev_t ev) {
     }
 }
 
-void do_send(osjob_t* j, bool data){
+void do_send(osjob_t* j, float data){
     // Check if there is not a current TX/RX job running
     if (LMIC.opmode & OP_TXRXPEND) {
         Serial.println(F("OP_TXRXPEND, not sending"));
