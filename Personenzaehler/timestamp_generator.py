@@ -25,10 +25,14 @@ interval = 0.1
 
 start_step = 0
 last_recording_of_step = 0
+currently_stepping = False
 stop_recording = False
 stopped_recording = threading.Event()
 save_dir = ''
 port = '/dev/ttyACM0'
+init_form_view = False
+gui_file_path = ''
+gui_file_dir = ''
 
 import serial
 
@@ -102,9 +106,115 @@ def list_ports():
         dev_port +=1
     return available_ports,working_ports,non_working_ports
 
+def run_step_gui():
+    global init_form_view
+    root = tk.Tk()
+    gui_step = WeightSelectorApp(root)
+    while not stop_recording:
+        root.update()
+        if init_form_view:
+            gui_step.init_form_view(root,gui_file_path,webcam_in_folder(gui_file_dir))
+            gui_step.set_step_folder(gui_file_dir)
+            init_form_view = False
+    gui_step.destroy_all_frames()   
+
+def record_vibrations_txt(save_dir):
+    global stopped_recording, stop_recording, init_form_view, gui_file_path, gui_file_dir
+    file = open('testi.txt', "r")
+    # root = tk.Tk()
+    # gui_step = WeightSelectorApp(root)
+    # root.update()
+    backlog = []
+    (save_dir / "no_step").mkdir(parents=True, exist_ok=True)
+    (save_dir / "no_step" / "imgs").mkdir(parents=True, exist_ok=True)
+    while not stop_recording:
+        # root.update()
+        no_step_path = Path(increment_path((save_dir / "no_step" / "no_step"), exist_ok=False, ending='.txt'))  # increment run
+        file = open(no_step_path, "w")
+        file.write("timestamp,millis,AccX.AccY,AccZ,GyroX,GyroY,GyroZ\n")
+        while not currently_stepping:
+            time.sleep(0.001)
+        final = int(last_recording_of_step)
+        # with open('testi.txt') as myFile:
+        #     for num, line in enumerate(myFile, 1):
+        #         if lookup in line:
+        #             print 'found at line:', num
+
+        file.close()
+        # if not serial_response:
+        #     terminate_script('manual')
+
+        if not stop_recording:
+            serial_response = False
+            file_dir = str(save_dir / str(start_step))
+            (save_dir / str(start_step)).mkdir(parents=True, exist_ok=True)
+            file_path = str(save_dir / str(start_step) / "step.txt")
+            first = int(start_step)
+            file = open(file_path, "w")
+            file.write("timestamp,millis,AccX.AccY,AccZ,GyroX,GyroY,GyroZ\n")
+            
+            while currently_stepping:
+                final = int(last_recording_of_step)
+                # root.update()
+
+            write = False
+            with open('testi.txt') as myFile:
+                if final != 0:
+                    for _, line in enumerate(myFile, 1):
+                        if not write and (str(first-1) in line or str(first) in line):
+                            write = True
+                        if write and str(final+1) in line: 
+                            write = False
+                        if write:
+                            serial_response = True
+                            file.write(line)
+            file.close()
+            print(str(first-1))
+            print(str(final+1))
+            if not serial_response:
+                print('no data')
+            else:   
+                print('step!')
+                try:
+                    data = np.genfromtxt(file_path, delimiter=',', skip_header=1)  # Skip header
+
+                    # Extract timestamp and acceleration data
+                    start_time = data[0, 1]
+                    timestamp = [dat-start_time for dat in data[:, 1]]
+                    acc_x = data[:, 2]
+                    acc_y = data[:, 3]
+                    acc_z = data[:, 4]
+
+                    # Plotting
+                    plt.figure(figsize=(10, 6))
+
+                    plt.plot(timestamp, acc_x, label='AccX')
+                    plt.plot(timestamp, acc_y, label='AccY')
+                    plt.plot(timestamp, acc_z, label='AccZ')
+
+                    plt.title('Vibration Data')
+                    plt.xlabel('milliseconds')
+                    plt.ylabel('Acceleration')
+                    plt.legend()
+                    plt.grid(True)
+                    file_path_without_extension, file_extension = os.path.splitext(file_path)
+                    
+                    plt.savefig(file_path_without_extension + '.png')
+
+                    gui_file_path = file_path_without_extension + '.png'
+                    gui_file_dir = file_dir
+                    init_form_view = True
+                    # gui_step.init_form_view(root,file_path_without_extension + '.png',webcam_in_folder(file_dir))
+                    # gui_step.set_step_folder(file_dir)
+                except:
+                    print(file_path)
+    # gui_step.destroy_all_frames()    
+    terminate_script('stopped')
+    stopped_recording.set()
+
 def record_vibrations(save_dir):
     with serial.Serial(port=port, baudrate=115200) as ser:
-        global stopped_recording
+        global stopped_recording, stop_recording
         root = tk.Tk()
         gui_step = WeightSelectorApp(root)
         root.update()
@@ -127,6 +237,7 @@ def record_vibrations(save_dir):
                     file.write(backlog[0])
                     backlog.pop(0)
                 if last_recording_of_step > 0 or stop_recording:
+                    stop_recording = True
                     break
             if not serial_response:
                 terminate_script('manual')
@@ -151,6 +262,7 @@ def record_vibrations(save_dir):
                     if last_recording_of_step <= 0:
                         i=i+1
                     if (last_recording_of_step <= 0 and i>100) or stop_recording:
+                        stop_recording = True
                         break
                 for element in backlog:
                     file.write(element)
@@ -191,7 +303,7 @@ def record_vibrations(save_dir):
                     except:
                         print(file_path)
     gui_step.destroy_all_frames()    
-    terminate_script('manual')
+    terminate_script('stopped')
     stopped_recording.set()
 
 def webcam_in_folder(dir):
@@ -207,7 +319,7 @@ def check_if_overstepped_center(xyxy, img):
     return xyxy[0] < center and xyxy[2] > center
 
 def detect(save_img=False):
-    global last_recording_of_step,start_step,save_dir
+    global last_recording_of_step,start_step,save_dir,currently_stepping
     save_img = not nosave and not source.endswith('.txt')  # save inference images
     webcam = source.isnumeric() or source.endswith('.txt') or source.lower().startswith(
         ('rtsp://', 'rtmp://', 'http://', 'https://'))
@@ -259,8 +371,9 @@ def detect(save_img=False):
 
     t0 = time.time()
 
-
-    record_thread = threading.Thread(target=record_vibrations, args=(save_dir,))
+    gui_thread = threading.Thread(target=run_step_gui, args=())
+    gui_thread.start()
+    record_thread = threading.Thread(target=record_vibrations_txt, args=(save_dir,))
     record_thread.start()
     for path, img, im0s, vid_cap in dataset:
         if stop_recording:
@@ -321,29 +434,34 @@ def detect(save_img=False):
 
                 if has_overstepped_center:
                     cv2.putText(im0, 'Step!', (int(im0.shape[1]/2-10),int(im0.shape[0]-20)), cv2.FONT_HERSHEY_SIMPLEX, 1, colors[0], 2, cv2.LINE_AA) 
-                    if last_recording_of_step <= 0:
+                    if start_step <= 0:
                         start_step = t1
                         (save_dir / str(start_step)).mkdir(parents=True, exist_ok=True)
                     last_recording_of_step = t1
+                    currently_stepping = True
                     # Print time (inference + NMS)
                     # print(f'{s}Done. ({(1E3 * (t2 - t1)):.1f}ms) Inference, ({(1E3 * (t3 - t2)):.1f}ms) NMS')
 
                     cv2.imwrite(str(save_dir / str(start_step) / (str(t1)+".jpg")), im0)
-                    cv2.imshow("Webcam Stream", im0)
                 else:
-                    cv2.imwrite(str(save_dir / "no_step" / "imgs" / (str(t1)+".jpg")), im0)
-                    cv2.imshow("Webcam Stream", im0)
                     if last_recording_of_step>0 and (t1-last_recording_of_step)>0.6:
                         # os.rename(str(save_dir / str(start_step)), str(save_dir / (str(start_step)+"-"+str(last_recording_of_step))))
-                        last_recording_of_step = 0
+                        # last_recording_of_step = 0
+                        currently_stepping = False
                         start_step = 0
+                        cv2.imwrite(str(save_dir / "no_step" / "imgs" / (str(t1)+".jpg")), im0)
+                    else:
+                        cv2.imwrite(str(save_dir / str(start_step) / (str(t1)+".jpg")), im0)
             else:
-                cv2.imwrite(str(save_dir / "no_step" / "imgs" / (str(t1)+".jpg")), im0)
-                cv2.imshow("Webcam Stream", im0)
                 if last_recording_of_step>0 and (t1-last_recording_of_step)>0.6:
                     # os.rename(str(save_dir / str(start_step)), str(save_dir / (str(start_step)+"-"+str(last_recording_of_step))))
-                    last_recording_of_step = 0
+                    # last_recording_of_step = 0
+                    currently_stepping = False
                     start_step = 0
+                    cv2.imwrite(str(save_dir / "no_step" / "imgs" / (str(t1)+".jpg")), im0)
+                else:
+                    cv2.imwrite(str(save_dir / str(start_step) / (str(t1)+".jpg")), im0)
+            cv2.imshow("Webcam Stream", im0)
 
     if save_txt or save_img:
         s = f"\n{len(list(save_dir.glob('labels/*.txt')))} labels saved to {save_dir / 'labels'}" if save_txt else ''
@@ -424,8 +542,8 @@ def terminate_script(key):
                             print(file_path)
         sys.exit()
 
-listener = keyboard.Listener(
-    on_press=terminate_script)
-listener.start()
+# listener = keyboard.Listener(
+#     on_press=terminate_script)
+# listener.start()
 
 detect()
