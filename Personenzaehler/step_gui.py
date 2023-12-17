@@ -42,18 +42,18 @@ class WeightSelectorApp:
         self.mid_frame = tk.Frame(root)
         self.mid_frame.pack(pady=10)
 
-        self.step_plot = Image.open(step_plot_path)
-        self.step_plot = self.step_plot.resize((800, 480))
-        self.step_plot = ImageTk.PhotoImage(self.step_plot)
+        # self.step_plot = Image.open(step_plot_path)
+        # self.step_plot = self.step_plot.resize((800, 480))
+        # self.step_plot = ImageTk.PhotoImage(self.step_plot)
 
         self.step_vids = step_vid_path
         self.step_vid_index = itertools.cycle(range(len(self.step_vids)))
 
-        self.step_plot_label = tk.Label(self.mid_frame, image=self.step_plot)
-        self.step_plot_label.pack(side=tk.LEFT, padx=10)
+        # self.step_plot_label = tk.Label(self.mid_frame, image=self.step_plot)
+        # self.step_plot_label.pack(side=tk.LEFT, padx=10)
 
         self.step_vid_label = tk.Label(self.mid_frame)
-        self.step_vid_label.pack(side=tk.RIGHT, padx=10)
+        self.step_vid_label.pack()
 
         self.rotate_vid_image()  # Initial update
 
@@ -61,7 +61,7 @@ class WeightSelectorApp:
         self.bottom_frame.pack(pady=50)
 
         # Information
-        labeltext = textwrap.fill("We would like to use this data train a neural network to detect steps through ground vibration."
+        labeltext = textwrap.fill("We would like to use this data to train a neural network to detect steps through ground vibration."
                                    + " If you wouldnt mind, it would help us out greatly, if you could also provide us your approximate weight and age.", width=150)
         self.info_label = tk.Label(self.bottom_frame, text=labeltext, font=("Arial", 16))
         self.info_label.pack(pady=10)
