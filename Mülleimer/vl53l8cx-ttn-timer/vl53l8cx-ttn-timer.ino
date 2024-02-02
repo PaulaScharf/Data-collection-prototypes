@@ -63,6 +63,7 @@
 
 #define INT_PIN 3
 #define DONE_PIN 7
+#define VOLTAGE_PIN 5
 #define IO_ENABLE 8
 
 #define uS_TO_S_FACTOR 1000000  /* Conversion factor for micro seconds to seconds */
@@ -76,27 +77,16 @@ Preferences preferences;
 float fill_percentage = 0.;
 bool lora_in_progress = false;
 
+float battery_full = 4.2;
+float battery_empty = 2.75;
+
 #define DEV_I2C Wire
 #define LPN_PIN 4
 #define I2C_RST_PIN -1
 #define PWREN_PIN 2
 VL53L8CX sensor_VL53L8CX_top(&DEV_I2C, LPN_PIN, I2C_RST_PIN);
 
-void print_wakeup_reason(){
-  esp_sleep_wakeup_cause_t wakeup_reason;
-
-  wakeup_reason = esp_sleep_get_wakeup_cause();
-
-  switch(wakeup_reason)
-  {
-    case ESP_SLEEP_WAKEUP_EXT0 : Serial.println("Wakeup caused by external signal using RTC_IO"); break;
-    case ESP_SLEEP_WAKEUP_EXT1 : Serial.println("Wakeup caused by external signal using RTC_CNTL"); break;
-    case ESP_SLEEP_WAKEUP_TIMER : Serial.println("Wakeup caused by timer"); break;
-    case ESP_SLEEP_WAKEUP_TOUCHPAD : Serial.println("Wakeup caused by touchpad"); break;
-    case ESP_SLEEP_WAKEUP_ULP : Serial.println("Wakeup caused by ULP program"); break;
-    default : Serial.printf("Wakeup was not caused by deep sleep: %d\n",wakeup_reason); break;
-  }
-}
+void( * resetFunc)(void) = 0;
 
 void setup()
 {
@@ -110,7 +100,6 @@ void setup()
   // delay(2000);
 
   gpio_wakeup_disable((gpio_num_t)(INT_PIN));
-  // print_wakeup_reason();  
 
   preferences.begin("trashcan", false);
 
@@ -118,7 +107,7 @@ void setup()
   Serial.println("initing Lora");
   setup_lora();
 
-  attachInterrupt(6, clearPreferences, RISING);
+  attachInterrupt(6, clearPreferences, FALLING);
   setup_vl53l8cx();
 }
 
@@ -156,24 +145,16 @@ void loop()
   }
 }
 
+float getBatteryCharge(){
+  float voltage = (analogReadMilliVolts(VOLTAGE_PIN) / 1000.0)*4;
+  return (voltage-battery_empty)/(battery_full-battery_empty);
+}
+
 void clearPreferences() {
   Serial.println("clearing preferences...");
   preferences.clear();
+  resetFunc();
 }
-
-// void clearTrashcanDimensions(bool cur_state) {
-//   bool prev_state;
-//   if(preferences.isKey("p_state")) {
-//     preferences.getBool("p_state", prev_state);
-//     if(prev_state != cur_state) {
-//       Serial.println("clearing trashcan dimensions...");
-//       preferences.remove("t_dim");
-//       preferences.putBool("p_state", prev_state);
-//     }
-//   } else {
-//     preferences.putBool("p_state", false);
-//   }
-// }
 
 void enterSleepMode(void)
 {
@@ -188,5 +169,5 @@ void tx_callback(osjob_t* job) {
 }
 
 void notifyViaLora() {
-  do_send(&sendjob, fill_percentage);
+  do_send(&sendjob, fill_percentage, getBatteryCharge());
 }
