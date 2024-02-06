@@ -101,13 +101,11 @@ void setup()
 
   gpio_wakeup_disable((gpio_num_t)(INT_PIN));
 
-  preferences.begin("trashcan", false);
-
   // init Lora
   Serial.println("initing Lora");
   setup_lora();
 
-  attachInterrupt(6, clearPreferences, FALLING);
+  attachInterrupt(6, clearDimensions, FALLING);
   setup_vl53l8cx();
 }
 
@@ -126,7 +124,6 @@ void loop()
     status = sensor_VL53L8CX_top.vl53l8cx_get_ranging_data(&Results);
     if (checkIfUpdated(&Results)) {
       fill_percentage = measureFill(&Results);
-      Serial.println("trashcan filled " + String(fill_percentage));
       lora_in_progress = true;
       notifyViaLora();
       // execute scheduled jobs and events for Lora
@@ -150,14 +147,20 @@ float getBatteryCharge(){
   return (voltage-battery_empty)/(battery_full-battery_empty);
 }
 
-void clearPreferences() {
-  Serial.println("clearing preferences...");
+void clearDimensions() {
+  Serial.println("clearing previous trashcan dimensions...");  
+  preferences.begin("trashcan", false);
   preferences.clear();
+  preferences.end();
+  preferences.begin("fcnt", false);
+  preferences.clear();
+  preferences.end();
   resetFunc();
 }
 
 void enterSleepMode(void)
 {
+  Serial.println("sleep");
   digitalWrite(DONE_PIN, LOW); 
   digitalWrite(DONE_PIN, HIGH); 
   delay(10);
@@ -169,5 +172,12 @@ void tx_callback(osjob_t* job) {
 }
 
 void notifyViaLora() {
-  do_send(&sendjob, fill_percentage, getBatteryCharge());
+  int fill_percentage_rounded = ((int)(fill_percentage*100)/5)*5;
+  Serial.printf("trashcan filled %i percent\n", fill_percentage_rounded);
+  int battery_charge_rounded = (int)(getBatteryCharge()*100);
+  delay(5);
+  battery_charge_rounded = (battery_charge_rounded+(int)(getBatteryCharge()*100))/2;
+  battery_charge_rounded = (battery_charge_rounded/5)*5;
+  Serial.printf("battery charged %i percent\n", battery_charge_rounded);
+  do_send(&sendjob, fill_percentage_rounded, battery_charge_rounded);
 }

@@ -212,7 +212,7 @@
 //     }
 // }
 
-// void do_send(osjob_t* j, float data, float charge){
+// void do_send(osjob_t* j, int data, int charge){
 //     // Check if there is not a current TX/RX job running
 //     if (LMIC.opmode & OP_TXRXPEND) {
 //         Serial.println(F("OP_TXRXPEND, not sending"));

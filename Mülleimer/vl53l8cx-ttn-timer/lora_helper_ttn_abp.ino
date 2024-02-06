@@ -79,6 +79,30 @@ void printHex2(unsigned v) {
     Serial.print(v, HEX);
 }
 
+unsigned int fcnt_read(bool up) {
+  preferences.begin("fcnt", true);
+  char* name = "fcnt_down";
+  if(up) {
+    name = "fcnt_up";
+  }
+  unsigned int counter = preferences.getUInt(name, 0);
+  Serial.println(String(name) + " " + String(counter));
+  preferences.end();
+  return counter;
+}
+
+void fcnt_incr(bool up) {
+  preferences.begin("fcnt", false);
+  char* name = "fcnt_down";
+  if(up) {
+    name = "fcnt_up";
+  }
+  unsigned int counter = preferences.getUInt(name, 0);
+  preferences.putUInt(name, counter+1);
+  Serial.println(String(name) + " " + String(counter+1));
+  preferences.end();
+}
+
 void onEvent (ev_t ev) {
     Serial.print(os_getTime());
     Serial.print(": ");
@@ -153,6 +177,7 @@ void onEvent (ev_t ev) {
               Serial.print(LMIC.dataLen);
               Serial.println(F(" bytes of payload"));
             }
+            fcnt_incr(true);
             lora_in_progress = false;
             break;
         case EV_LOST_TSYNC:
@@ -181,6 +206,7 @@ void onEvent (ev_t ev) {
         */
         case EV_TXSTART:
             Serial.println(F("EV_TXSTART"));
+            fcnt_incr(false);
             break;
         case EV_TXCANCELED:
             Serial.println(F("EV_TXCANCELED"));
@@ -190,6 +216,7 @@ void onEvent (ev_t ev) {
             break;
         case EV_JOIN_TXCOMPLETE:
             Serial.println(F("EV_JOIN_TXCOMPLETE: no JoinAccept"));
+            fcnt_incr(true);
             lora_in_progress = false;
             break;
 
@@ -200,7 +227,7 @@ void onEvent (ev_t ev) {
     }
 }
 
-void do_send(osjob_t* j, float data, float charge){
+void do_send(osjob_t* j, int data, int charge){
     // Check if there is not a current TX/RX job running
     if (LMIC.opmode & OP_TXRXPEND) {
         Serial.println(F("OP_TXRXPEND, not sending"));
@@ -262,4 +289,7 @@ void setup_lora() {
 
   // Set data rate and transmit power for uplink
   LMIC_setDrTxpow(DR_SF7,14);
+
+  LMIC.seqnoUp = fcnt_read(true);
+  LMIC.seqnoUp = fcnt_read(false);
 }

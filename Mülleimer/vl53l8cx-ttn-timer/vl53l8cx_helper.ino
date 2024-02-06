@@ -41,6 +41,7 @@ void setup_vl53l8cx() {
 
   sensor_VL53L8CX_top.vl53l8cx_set_resolution(res);
 
+  preferences.begin("trashcan", false);
   if(!preferences.isKey("t_dim")) {
     Serial.println("sensing initial dimensions");
     measure_trashcan(trashcan_dimensions);
@@ -63,6 +64,7 @@ void setup_vl53l8cx() {
       Serial.println("");
     }
   }
+  preferences.end();
 
   // Disable thresholds detection.
   sensor_VL53L8CX_top.vl53l8cx_set_detection_thresholds_enable(0U);
