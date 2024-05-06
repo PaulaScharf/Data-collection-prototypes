@@ -77,8 +77,8 @@ Preferences preferences;
 float fill_percentage = 0.;
 bool lora_in_progress = false;
 
-float battery_full = 4.2;
-float battery_empty = 2.75;
+float battery_full = 4200/4;
+float battery_empty = 2750/4;
 
 #define DEV_I2C Wire
 #define LPN_PIN 4
@@ -143,7 +143,8 @@ void loop()
 }
 
 float getBatteryCharge(){
-  float voltage = (analogReadMilliVolts(VOLTAGE_PIN) / 1000.0)*4;
+  int voltage = analogReadMilliVolts(VOLTAGE_PIN);
+  voltage = analogReadMilliVolts(VOLTAGE_PIN);
   return (voltage-battery_empty)/(battery_full-battery_empty);
 }
 
@@ -155,6 +156,7 @@ void clearDimensions() {
   preferences.begin("fcnt", false);
   preferences.clear();
   preferences.end();
+  delay(1000);
   resetFunc();
 }
 

@@ -40,18 +40,44 @@ CayenneLPP lpp(51);
 
 #define VCC_ENABLE 41
 
+// *********************** trashcan-abp / Alter Friedhof ***************************************
 // LoRaWAN NwkSKey, network session key
 // This should be in big-endian (aka msb).
-static const PROGMEM u1_t NWKSKEY[16] = { XXX };
-
+static const PROGMEM u1_t NWKSKEY[16] = { 0x07, 0x47, 0xB9, 0xD6, 0xE7, 0x3A, 0x76, 0xA6, 0x92, 0x0A, 0x14, 0xAD, 0x87, 0x47, 0x96, 0x4E };
 // LoRaWAN AppSKey, application session key
 // This should also be in big-endian (aka msb).
-static const u1_t PROGMEM APPSKEY[16] = { XXX };
-
+static const u1_t PROGMEM APPSKEY[16] = { 0x36, 0x2D, 0xFB, 0xD6, 0x4F, 0x30, 0xCF, 0xE5, 0xD3, 0xD4, 0xBC, 0xA6, 0xDB, 0x1C, 0x0F, 0x68 };
 // LoRaWAN end-device address (DevAddr)
 // See http://thethingsnetwork.org/wiki/AddressSpace
 // The library converts the address to network byte order as needed, so this should be in big-endian (aka msb) too.
-static const u4_t DEVADDR = XXX ; // <-- Change this address for every node!
+static const u4_t DEVADDR = 0x260BED30 ; // <-- Change this address for every node!
+
+/*
+// *********************** trashcan-laer-2 - Rathaus ***************************************
+// LoRaWAN NwkSKey, network session key
+// This should be in big-endian (aka msb).
+static const PROGMEM u1_t NWKSKEY[16] = { 0x86, 0x23, 0xD5, 0x14, 0x21, 0x8E, 0x23, 0xD7, 0xE1, 0x97, 0x45, 0x19, 0x24, 0x8F, 0x40, 0xE9 };
+// LoRaWAN AppSKey, application session key
+// This should also be in big-endian (aka msb).
+static const u1_t PROGMEM APPSKEY[16] = { 0xF4, 0x59, 0x25, 0xEF, 0x1B, 0xF6, 0x1A, 0x8D, 0x9C, 0x1D, 0x33, 0xF7, 0x18, 0x4E, 0x0D, 0xFD };
+// LoRaWAN end-device address (DevAddr)
+// See http://thethingsnetwork.org/wiki/AddressSpace
+// The library converts the address to network byte order as needed, so this should be in big-endian (aka msb) too.
+static const u4_t DEVADDR = 0x260B8AA9 ; // <-- Change this address for every node!
+*/
+/*
+// *********************** trashcan-laer-3 - Eisdiele ***************************************
+// LoRaWAN NwkSKey, network session key
+// This should be in big-endian (aka msb).
+static const PROGMEM u1_t NWKSKEY[16] = { 0xD5, 0x4E, 0xCC, 0x2C, 0x8B, 0x33, 0xF4, 0x45, 0x5C, 0xAF, 0x1B, 0xF1, 0x1F, 0xB6, 0x20, 0x9C };
+// LoRaWAN AppSKey, application session key
+// This should also be in big-endian (aka msb).
+static const u1_t PROGMEM APPSKEY[16] = { 0x9B, 0xD0, 0x22, 0x39, 0x87, 0xF3, 0x25, 0x3F, 0xE8, 0x41, 0xDB, 0x6C, 0xCA, 0x66, 0x12, 0xC9 };
+// LoRaWAN end-device address (DevAddr)
+// See http://thethingsnetwork.org/wiki/AddressSpace
+// The library converts the address to network byte order as needed, so this should be in big-endian (aka msb) too.
+static const u4_t DEVADDR = 0x260B599C ; // <-- Change this address for every node!
+*/
 
 // These callbacks are only used in over-the-air activation, so they are
 // left empty here (we cannot leave them out completely unless
@@ -228,19 +254,19 @@ void onEvent (ev_t ev) {
 }
 
 void do_send(osjob_t* j, int data, int charge){
-    // Check if there is not a current TX/RX job running
-    if (LMIC.opmode & OP_TXRXPEND) {
-        Serial.println(F("OP_TXRXPEND, not sending"));
-    } else {
-        lpp.reset();
-        lpp.addAnalogInput(1, (float)data);
-        lpp.addAnalogInput(2, (float)charge);
+  // Check if there is not a current TX/RX job running
+  if (LMIC.opmode & OP_TXRXPEND) {
+      Serial.println(F("OP_TXRXPEND, not sending"));
+  } else {
+      lpp.reset();
+      lpp.addAnalogInput(1, (float)data);
+      lpp.addAnalogInput(2, (float)charge);
 
-        // Prepare upstream data transmission at the next possible time.
-        LMIC_setTxData2(1, lpp.getBuffer(), lpp.getSize(), 0);
-        Serial.println(F("Packet queued"));
-    }
-    // Next TX is scheduled after TX_COMPLETE event.
+      // Prepare upstream data transmission at the next possible time.
+      LMIC_setTxData2(1, lpp.getBuffer(), lpp.getSize(), 0);
+      Serial.println(F("Packet queued"));
+  }
+  // Next TX is scheduled after TX_COMPLETE event.
 }
 
 void setup_lora() {
