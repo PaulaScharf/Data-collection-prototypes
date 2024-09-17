@@ -1,0 +1,2 @@
+# step_detector
+Mind the scaling of the recorded acceleration! If you scaled/normalized/absolutized the data during training, then you also have to do that when you feed it into the model. At the moment the z-acceleration is multiplied by -1 for example.
