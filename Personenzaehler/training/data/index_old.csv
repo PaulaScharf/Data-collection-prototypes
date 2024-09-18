@@ -1,0 +1,3 @@
+path,prefix,time_index,time_factor,x_index,x_factor,y_index,y_factor,z_index,z_factor
+"format_01","no_step",0,0.001,1,1.0,2,1.0,3,9.8067
+"format_02","no_step",1,0.001,2,1.0,3,1.0,4,-1.0
