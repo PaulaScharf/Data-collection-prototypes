@@ -6,7 +6,7 @@ import numpy as np
 import math
 
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense, Reshape, Conv1D, MaxPooling2D, GlobalAveragePooling1D, Flatten, MaxPooling1D, Dropout
+from tensorflow.keras.layers import LSTM, Dense, Reshape, Conv1D, MaxPooling2D, GlobalAveragePooling1D, Flatten, MaxPooling1D, Dropout, Input
 
 
 from sklearn.model_selection import GridSearchCV
@@ -136,13 +136,13 @@ def load_dataset(directory_path):
 				# make sure the time window has the correct size
 				# set = set.reindex(range(400))
 				# perform mean imputation for missing values
-				set.fillna(column_means, inplace=True)
+				set = set.fillna(column_means)
 				# remove initial row of zeros
 				set = set.iloc[1:]
 				# set start time to zero
-				set['time'] -= set['time'].iat[0]
+				set = set.assign(time=set['time'].iat[0])
 				# use time as index
-				set['time'] = pandas.to_timedelta(set['time'], 's')
+				set = set.assign(time=pandas.to_timedelta(set['time'], 's'))
 				set.set_index('time', inplace=True)
 				all_datasets.append(set)
 	
@@ -166,8 +166,9 @@ def create_1d_model(window_size=399):
 
 	model = Sequential()
 	# model.add(Reshape((int(window_size**0.5), int(window_size**0.5),3), input_shape=(window_size,3)))
-	model.add(Reshape((window_size,3), input_shape=(window_size*3,)))
-	model.add(Conv1D(6,(3), activation='relu',input_shape=(window_size,3)))
+	model.add(Input((window_size*3,)))
+	model.add(Reshape((window_size,3)))
+	model.add(Conv1D(6,(3), activation='relu'))
 	# model.add(GlobalAveragePooling1D())
 	# model.add(MaxPooling1D(2))
 	# model.add(Conv1D(12,(3), activation='relu'))
